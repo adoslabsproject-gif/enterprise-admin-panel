@@ -257,13 +257,11 @@ LUA;
         }
 
         try {
+            // phpredis 6.x signature: eval(script, [keys..., args...], numKeys)
             $result = $this->redis->eval(
                 self::LUA_RECORD_FAILURE,
-                ["circuit:{$circuitId}"],
-                1,
-                $threshold,
-                $recoveryTime,
-                time()
+                ["circuit:{$circuitId}", $threshold, $recoveryTime, time()],
+                1 // 1 key, rest are ARGV
             );
 
             return [
@@ -291,12 +289,11 @@ LUA;
         }
 
         try {
+            // phpredis 6.x signature: eval(script, [keys..., args...], numKeys)
             $result = $this->redis->eval(
                 self::LUA_RECORD_SUCCESS,
-                ["circuit:{$circuitId}"],
-                1,
-                $halfOpenThreshold,
-                time()
+                ["circuit:{$circuitId}", $halfOpenThreshold, time()],
+                1 // 1 key, rest are ARGV
             );
 
             return [
@@ -325,12 +322,11 @@ LUA;
         }
 
         try {
+            // phpredis 6.x signature: eval(script, [keys..., args...], numKeys)
             $result = $this->redis->eval(
                 self::LUA_ALLOW_REQUEST,
-                ["circuit:{$circuitId}"],
-                1,
-                $recoveryTime,
-                time()
+                ["circuit:{$circuitId}", $recoveryTime, time()],
+                1 // 1 key, rest are ARGV
             );
 
             return [
