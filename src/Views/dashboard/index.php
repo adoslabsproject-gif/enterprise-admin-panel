@@ -236,7 +236,9 @@
 <script>
 async function refreshDbPoolMetrics() {
     try {
-        const res = await fetch('<?= htmlspecialchars(($admin_base_path ?? '/admin') . '/api/dbpool') ?>');
+        const res = await fetch('<?= htmlspecialchars(($admin_base_path ?? '/admin') . '/api/dbpool') ?>', {
+            credentials: 'same-origin'
+        });
         const data = await res.json();
         console.log('DB Pool metrics:', data);
         // Could update UI dynamically here
@@ -248,7 +250,9 @@ async function refreshDbPoolMetrics() {
 
 async function refreshRedisMetrics() {
     try {
-        const res = await fetch('<?= htmlspecialchars(($admin_base_path ?? '/admin') . '/api/redis') ?>');
+        const res = await fetch('<?= htmlspecialchars(($admin_base_path ?? '/admin') . '/api/redis') ?>', {
+            credentials: 'same-origin'
+        });
         const data = await res.json();
         console.log('Redis metrics:', data);
 

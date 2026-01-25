@@ -457,6 +457,36 @@ try {
     }
 
     // ========================================================================
+    // Infrastructure Metrics API (requires authentication)
+    // ========================================================================
+    elseif ($relativePath === '/api/dbpool' && $method === 'GET') {
+        $sessionId = $getSessionCookie() ?? null;
+        $session = $sessionId ? $sessionService->validate($sessionId) : null;
+
+        if ($session === null) {
+            $response = Response::json(['error' => 'Unauthorized'], 401);
+        } else {
+            $controller = new DashboardController($dbPool, $sessionService, $auditService, $moduleRegistry);
+            $controller->setRequest($request);
+            $controller->setConfigService($configService);
+            $response = $controller->dbPoolMetrics();
+        }
+    }
+    elseif ($relativePath === '/api/redis' && $method === 'GET') {
+        $sessionId = $getSessionCookie() ?? null;
+        $session = $sessionId ? $sessionService->validate($sessionId) : null;
+
+        if ($session === null) {
+            $response = Response::json(['error' => 'Unauthorized'], 401);
+        } else {
+            $controller = new DashboardController($dbPool, $sessionService, $auditService, $moduleRegistry);
+            $controller->setRequest($request);
+            $controller->setConfigService($configService);
+            $response = $controller->redisMetrics();
+        }
+    }
+
+    // ========================================================================
     // Dashboard (requires authentication)
     // ========================================================================
     elseif ($relativePath === '/dashboard' || $relativePath === '/' || $relativePath === '') {
