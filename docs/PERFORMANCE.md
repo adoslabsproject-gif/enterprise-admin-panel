@@ -4,11 +4,29 @@ This guide covers all performance optimizations available in Enterprise Admin Pa
 
 ## Table of Contents
 
+- [Quick Setup](#quick-setup)
 - [OPcache Configuration](#opcache-configuration)
 - [Redis Configuration](#redis-configuration)
 - [Database Pool Configuration](#database-pool-configuration)
 - [Cache Management](#cache-management)
 - [Clearing Caches](#clearing-caches)
+
+---
+
+## Quick Setup
+
+Use the built-in setup tool for automatic OPcache configuration:
+
+```bash
+# Check current OPcache status
+php vendor/ados-labs/enterprise-admin-panel/elf/opcache-setup.php --check
+
+# Generate optimized configuration file
+php vendor/ados-labs/enterprise-admin-panel/elf/opcache-setup.php --generate
+
+# Install and restart PHP-FPM (production - requires sudo)
+sudo php vendor/ados-labs/enterprise-admin-panel/elf/opcache-setup.php --install --fpm-restart
+```
 
 ---
 
@@ -18,7 +36,13 @@ OPcache significantly improves PHP performance by caching compiled bytecode.
 
 ### Enable OPcache with Preloading
 
-Add to your `php.ini`:
+Use the automated setup tool (recommended):
+
+```bash
+php elf/opcache-setup.php --generate
+```
+
+Or manually add to your `php.ini`:
 
 ```ini
 ; Enable OPcache

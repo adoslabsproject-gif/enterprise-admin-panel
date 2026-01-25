@@ -721,4 +721,20 @@ echo "  2. php -S localhost:8080 -t public\n";
 echo "  3. Open browser:  {$fullUrl}\n";
 echo "  4. Login with:    {$adminEmail} / {$adminPassword}\n";
 echo "\n";
+
+// ============================================================================
+// OPcache Performance Setup
+// ============================================================================
+
+echo "╔══════════════════════════════════════════════════════════════════════════════╗\n";
+echo "║  PERFORMANCE OPTIMIZATION (Optional)                                         ║\n";
+echo "╠══════════════════════════════════════════════════════════════════════════════╣\n";
+echo "║  Enable OPcache preloading for 50-100ms faster first requests:              ║\n";
+echo "║                                                                             ║\n";
+echo "║  php vendor/ados-labs/enterprise-admin-panel/elf/opcache-setup.php --check  ║\n";
+echo "║  php vendor/ados-labs/enterprise-admin-panel/elf/opcache-setup.php --generate║\n";
+echo "║                                                                             ║\n";
+echo "║  For production: sudo php elf/opcache-setup.php --install --fpm-restart     ║\n";
+echo "╚══════════════════════════════════════════════════════════════════════════════╝\n";
+echo "\n";
 echo "Installation complete!\n\n";
