@@ -363,17 +363,7 @@
 
             document.body.appendChild(form);
             form.submit();
-        }
-    };
-
-    // Initialize when DOM is ready
-    if (document.readyState === 'loading') {
-        document.addEventListener('DOMContentLoaded', function() {
-            SessionGuard.init();
-        });
-    } else {
-        SessionGuard.init();
-    }
+        },
 
         /**
          * Pause timers (when tab is hidden)
@@ -443,6 +433,15 @@
             console.log('[SessionGuard] Destroyed');
         }
     };
+
+    // Initialize when DOM is ready
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', function() {
+            SessionGuard.init();
+        });
+    } else {
+        SessionGuard.init();
+    }
 
     // Expose globally for debugging
     window.SessionGuard = SessionGuard;

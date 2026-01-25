@@ -245,4 +245,4 @@ $dashboardConfig = [
      data-api-base="<?= htmlspecialchars($dashboardConfig['apiBase']) ?>"
      data-redis-enabled="<?= $dashboardConfig['redisEnabled'] ? 'true' : 'false' ?>"
      data-redis-connected="<?= $dashboardConfig['redisConnected'] ? 'true' : 'false' ?>"
-     style="display:none;"></div>
+     hidden></div>
