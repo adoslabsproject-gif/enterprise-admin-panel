@@ -167,9 +167,8 @@ $auditService->log('cli_url_get_success', $user['id'], [
 if ($jsonOutput) {
     echo json_encode([
         'success' => true,
-        'admin_base_path' => $adminBasePath,
-        'login_url' => $fullUrl,
-        'dashboard_url' => "http://localhost:8080{$adminBasePath}/dashboard",
+        'url' => $fullUrl,
+        'base_path' => $adminBasePath,
     ], JSON_PRETTY_PRINT) . "\n";
 } else {
     echo "\n";
@@ -177,8 +176,6 @@ if ($jsonOutput) {
     echo "║  ADMIN PANEL URL (SECRET - DO NOT SHARE!)                                   ║\n";
     echo "╚══════════════════════════════════════════════════════════════════════════════╝\n";
     echo "\n";
-    echo "  Login URL:     {$fullUrl}\n";
-    echo "  Dashboard URL: http://localhost:8080{$adminBasePath}/dashboard\n";
-    echo "  Base Path:     {$adminBasePath}\n";
+    echo "  {$fullUrl}\n";
     echo "\n";
 }
