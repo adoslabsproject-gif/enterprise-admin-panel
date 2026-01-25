@@ -202,6 +202,12 @@ final class Bootstrap
                 'idle_timeout' => (int) ($_ENV['DB_IDLE_TIMEOUT'] ?? 300),
                 'ssl' => filter_var($_ENV['DB_SSL'] ?? false, FILTER_VALIDATE_BOOLEAN),
                 'ssl_ca' => $_ENV['DB_SSL_CA'] ?? null,
+                // Redis for distributed circuit breaker and metrics
+                'redis_enabled' => !empty($_ENV['REDIS_HOST']),
+                'redis_host' => $_ENV['REDIS_HOST'] ?? 'localhost',
+                'redis_port' => (int) ($_ENV['REDIS_PORT'] ?? 6379),
+                'redis_password' => $_ENV['REDIS_PASSWORD'] ?? null,
+                'redis_database' => (int) ($_ENV['REDIS_DATABASE'] ?? 0),
             ], $configOverride);
 
             return DatabasePool::create($config);
