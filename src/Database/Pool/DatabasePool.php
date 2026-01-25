@@ -244,7 +244,8 @@ final class DatabasePool
             $conn->acquire();
             $this->poolHits++;
             $this->metricsCollector?->recordPoolHit();
-            $circuitBreaker->recordSuccess();
+            // NOTE: Don't recordSuccess() here - wait for query success
+            // Circuit breaker success is recorded in query()/execute() after successful operation
             return $conn;
         }
 
@@ -255,7 +256,8 @@ final class DatabasePool
                 $conn->acquire();
                 $this->poolMisses++;
                 $this->metricsCollector?->recordPoolMiss();
-                $circuitBreaker->recordSuccess();
+                // NOTE: Don't recordSuccess() here - wait for query success
+                // Circuit breaker success is recorded in query()/execute() after successful operation
                 return $conn;
             } catch (PDOException $e) {
                 $circuitBreaker->recordFailure();
@@ -309,6 +311,9 @@ final class DatabasePool
             $duration = microtime(true) - $startTime;
             $this->recordQueryMetrics($connection, $duration);
 
+            // Record success AFTER query succeeds (not at acquire time)
+            $this->getCircuitBreaker()->recordSuccess();
+
             return $result;
         } catch (PDOException $e) {
             $this->failedQueries++;
@@ -345,6 +350,9 @@ final class DatabasePool
 
             $duration = microtime(true) - $startTime;
             $this->recordQueryMetrics($connection, $duration);
+
+            // Record success AFTER execute succeeds (not at acquire time)
+            $this->getCircuitBreaker()->recordSuccess();
 
             return $result;
         } catch (PDOException $e) {
