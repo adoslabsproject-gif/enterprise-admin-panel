@@ -1,15 +1,9 @@
 # Enterprise Admin Panel
 
-**Enterprise Lightning Framework - Package 0**
+> **Author:** Nicola Cucurachi
+> **Enterprise Lightning Framework - Package 0**
 
 Admin panel with cryptographic dynamic URLs. No predictable `/admin` endpoints.
-
-> **Documentation**: See the [`docs/`](docs/) folder for complete guides:
-> - [Quick Start](docs/QUICK_START.md) - Get running in 5 minutes
-> - [CLI Commands](docs/CLI-COMMANDS.md) - All installation options (PostgreSQL/MySQL, etc.)
-> - [Performance](docs/PERFORMANCE.md) - OPcache, Redis, cache clearing
-> - [Complete Guide](docs/COMPLETE_GUIDE.md) - Full configuration reference
-> - [Architecture](docs/ARCHITECTURE.md) - System design and components
 
 ---
 
@@ -31,81 +25,187 @@ This panel generates URLs like:
 
 ## Requirements
 
-- PHP 8.1+
+- PHP 8.2+
 - PostgreSQL 14+ or MySQL 8.0+
+- Redis 7+ (optional, for distributed circuit breaker)
 - Docker/OrbStack (for local development)
 
 ---
 
 ## Installation
 
-### Quick Start (copy/paste one line at a time)
+### Step 1: Create Project
 
 ```bash
-mkdir my-project && cd my-project
+mkdir myproject && cd myproject
 ```
 
+### Step 2: Create composer.json
+
 ```bash
-echo '{"require":{"ados-labs/enterprise-admin-panel":"dev-main"},"repositories":[{"type":"vcs","url":"git@github.com:adoslabsproject-gif/enterprise-admin-panel.git"}],"minimum-stability":"dev","prefer-stable":true}' > composer.json
+cat > composer.json << 'EOF'
+{
+    "name": "mycompany/myproject",
+    "type": "project",
+    "require": {
+        "php": ">=8.2",
+        "ados-labs/enterprise-admin-panel": "dev-main"
+    },
+    "repositories": [
+        {
+            "type": "vcs",
+            "url": "git@github.com:adoslabsproject-gif/enterprise-admin-panel.git"
+        }
+    ],
+    "minimum-stability": "dev",
+    "prefer-stable": true
+}
+EOF
 ```
+
+### Step 3: Install Dependencies
 
 ```bash
 composer install
 ```
 
+### Step 4: Start Database Services
+
+**Option A: Use the included docker-compose.yml**
+
 ```bash
-cd vendor/ados-labs/enterprise-admin-panel/elf && docker compose up -d && cd ../../../..
+cat > docker-compose.yml << 'EOF'
+version: '3.8'
+
+services:
+  postgres:
+    image: postgres:17-alpine
+    container_name: elf-postgres
+    environment:
+      POSTGRES_DB: admin_panel
+      POSTGRES_USER: admin
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-your_secure_password}
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+  redis:
+    image: redis:7-alpine
+    container_name: elf-redis
+    command: redis-server --requirepass ${REDIS_PASSWORD:-your_redis_password}
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+
+  mailpit:
+    image: axllent/mailpit:latest
+    container_name: elf-mailpit
+    ports:
+      - "1025:1025"
+      - "8025:8025"
+
+volumes:
+  postgres_data:
+  redis_data:
+EOF
+
+docker-compose up -d
 ```
+
+**Option B: Use existing database**
+
+Skip docker-compose and configure your existing database in Step 5.
+
+### Step 5: Create .env File (REQUIRED)
+
+**Important: Create this BEFORE running the installer!**
+
+```bash
+cat > .env << 'EOF'
+# Database - REQUIRED
+DB_DRIVER=pgsql
+DB_HOST=localhost
+DB_PORT=5432
+DB_DATABASE=admin_panel
+DB_USERNAME=admin
+DB_PASSWORD=your_secure_password
+
+# Redis (optional - enables distributed circuit breaker)
+REDIS_HOST=localhost
+REDIS_PORT=6379
+REDIS_PASSWORD=your_redis_password
+
+# SMTP (Mailpit for development)
+SMTP_HOST=localhost
+SMTP_PORT=1025
+SMTP_FROM=admin@localhost
+EOF
+```
+
+### Step 6: Run Installer
 
 ```bash
 php vendor/ados-labs/enterprise-admin-panel/elf/install.php --email=admin@example.com
 ```
 
+**IMPORTANT:** Save the output! You will see:
+- **Admin URL** - Secret URL (shown only once!)
+- **Password** - Generated secure password
+- **Master CLI Token** - Required for all CLI commands
+
+### Step 7: Start Web Server
+
 ```bash
 php -S localhost:8080 -t public
 ```
 
-### What Gets Created
+### Step 8: Access Admin Panel
+
+Open the URL shown in Step 6 (NOT `/admin`!)
+
+---
+
+## Project Structure
+
+After installation:
 
 ```
-my-project/
+myproject/
 ├── .env                 ← Configuration (APP_KEY, database, SMTP)
+├── .gitignore           ← Ignores .env, vendor, etc.
 ├── composer.json
+├── docker-compose.yml   ← (if you created it)
 ├── public/              ← Web root
 │   ├── index.php        ← Entry point
 │   ├── css/             ← Stylesheets
 │   ├── js/              ← JavaScript
-│   └── favicon.ico      ← Favicons
+│   └── favicon.ico
 └── vendor/              ← Dependencies
 ```
 
-### Services Started by Docker
+---
 
-| Service    | URL                    | Credentials     |
-|------------|------------------------|-----------------|
-| PostgreSQL | localhost:5432         | admin / secret  |
-| Redis      | localhost:6379         | -               |
-| Mailpit    | http://localhost:8025  | (2FA emails)    |
+## Services
+
+| Service    | URL                    | Purpose            |
+|------------|------------------------|--------------------|
+| PostgreSQL | localhost:5432         | Database           |
+| Redis      | localhost:6379         | Circuit breaker    |
+| Mailpit    | http://localhost:8025  | View 2FA emails    |
+| Admin Panel| (secret URL)           | Your admin panel   |
 
 ---
 
-## After Installation
+## Dashboard Features
 
-The install script shows credentials **ONCE**. Save them!
+The admin dashboard includes real-time metrics:
 
-- **Admin URL** - Secret URL like `http://localhost:8080/x-abc123.../login`
-- **Password** - Generated secure password with special characters
-- **Master CLI Token** - Required for all CLI commands
-
-### Default Security Settings
-
-- **2FA is ENABLED** by default (codes sent via email to Mailpit)
-- **Emergency access** can be created with CLI command
-
-To disable 2FA:
-```sql
-UPDATE admin_users SET two_factor_enabled = false WHERE email = 'admin@example.com';
-```
+- **Database Pool** - Connections, queries, circuit breaker state
+- **Redis** - Workers, memory, commands
+- **Audit Log** - Recent activity
+- **System Info** - PHP version, memory usage
 
 ---
 
@@ -118,52 +218,35 @@ All commands are in `vendor/ados-labs/enterprise-admin-panel/elf/`.
 - `--email=` Admin email
 - `--password=` Admin password
 
+### Get Admin URL
+
+```bash
+php vendor/ados-labs/enterprise-admin-panel/elf/url-get.php \
+  --token=MASTER_TOKEN \
+  --email=admin@example.com \
+  --password=YOUR_PASSWORD
+```
+
 ### Change Password
 
 ```bash
-php vendor/ados-labs/enterprise-admin-panel/elf/password-change.php --token=MASTER_TOKEN --email=admin@example.com --password=CURRENT --new-password=NEW
+php vendor/ados-labs/enterprise-admin-panel/elf/password-change.php \
+  --token=MASTER_TOKEN \
+  --email=admin@example.com \
+  --password=CURRENT \
+  --new-password=NEW
 ```
-
-Requirements: 12+ chars, 1 number, 1 special character (!@#$%^&*-_=+)
-
-### Regenerate Master Token
-
-```bash
-php vendor/ados-labs/enterprise-admin-panel/elf/token-master-regenerate.php --token=CURRENT_TOKEN --email=admin@example.com --password=PASSWORD
-```
-
-Old token is invalidated immediately.
 
 ### Create Emergency Access Token
 
 ```bash
-php vendor/ados-labs/enterprise-admin-panel/elf/token-emergency-create.php --token=MASTER_TOKEN --email=admin@example.com --password=PASSWORD
+php vendor/ados-labs/enterprise-admin-panel/elf/token-emergency-create.php \
+  --token=MASTER_TOKEN \
+  --email=admin@example.com \
+  --password=PASSWORD
 ```
 
-Creates a one-time token that **bypasses login and 2FA**, going directly to dashboard.
-Store offline (printed, in a safe). Valid for 30 days.
-
-### Use Emergency Access Token
-
-Via CLI:
-```bash
-php vendor/ados-labs/enterprise-admin-panel/elf/token-emergency-use.php --token=EMERGENCY_TOKEN
-```
-
-Via browser:
-```
-http://localhost:8080/emergency-login?token=EMERGENCY_TOKEN
-```
-
-Token is **single-use** - invalidated after access.
-
----
-
-## Development Tools
-
-| Tool    | URL                   | Purpose              |
-|---------|-----------------------|----------------------|
-| Mailpit | http://localhost:8025 | View 2FA email codes |
+Creates a one-time token that bypasses login and 2FA.
 
 ---
 
@@ -171,61 +254,66 @@ Token is **single-use** - invalidated after access.
 
 ### 2FA (Two-Factor Authentication)
 
-- **Enabled by default** for all new users
-- Codes sent via email (Mailpit in development)
-- Channels: Email, Telegram, Discord, Slack, TOTP
-
-### Emergency Access
-
-- Created on-demand via CLI (not during install)
-- Bypasses login form and 2FA
-- Goes directly to dashboard
-- Single-use, expires in 30 days
-
-### Password Security
-
-- Minimum 12 characters
-- At least 1 number + 1 special character
-- Argon2id hashing
-- Account lockout after 5 failed attempts
+- **Enabled by default** for all users
+- Codes sent via email (check Mailpit at http://localhost:8025)
+- Supports: Email, Telegram, Discord, Slack, TOTP
 
 ### URL Security
 
-| Feature      | Traditional | This Panel          |
-|--------------|-------------|---------------------|
-| URL Pattern  | `/admin`    | `/x-{random 32 hex}`|
-| Entropy      | 0 bits      | 128 bits            |
-| Brute Force  | Easy        | 2^128 combinations  |
+| Feature      | Traditional | This Panel           |
+|--------------|-------------|----------------------|
+| URL Pattern  | `/admin`    | `/x-{random 32 hex}` |
+| Entropy      | 0 bits      | 128 bits             |
+| Brute Force  | Easy        | 2^128 combinations   |
+
+### Database Pool
+
+- Connection pooling with LIFO reuse
+- Circuit breaker (trips on failures, auto-recovers)
+- Distributed state via Redis
+- Metrics and monitoring
+
+---
+
+## Documentation
+
+See the [`docs/`](docs/) folder:
+
+- [Quick Start](docs/QUICK_START.md) - Get running fast
+- [CLI Commands](docs/CLI-COMMANDS.md) - All installation options
+- [Performance](docs/PERFORMANCE.md) - OPcache, Redis, caching
+- [Database](docs/DATABASE.md) - Database access and configuration
+- [Architecture](docs/ARCHITECTURE.md) - System design
 
 ---
 
 ## Troubleshooting
 
+### "DB_PASSWORD is required"
+
+Create `.env` with `DB_PASSWORD` before running the installer.
+
 ### "404 Not Found" on /admin
 
-Expected. The admin URL is secret. If lost:
-1. Create emergency token (requires master token + email + password)
-2. Use it to access dashboard
+Expected. Use the secret URL from installation.
+
+### Lost the admin URL?
+
+```bash
+php vendor/ados-labs/enterprise-admin-panel/elf/url-get.php \
+  --token=MASTER_TOKEN --email=EMAIL --password=PASSWORD
+```
 
 ### 2FA codes not arriving
 
 Check Mailpit: http://localhost:8025
 
-### Lost master token
+### Connection refused
 
-Reset manually:
+Make sure Docker services are running:
 ```bash
-php -r "echo password_hash('your-new-token', PASSWORD_ARGON2ID);"
-```
-```sql
-UPDATE admin_users SET cli_token_hash = 'PASTE_HASH' WHERE email = 'admin@example.com';
-```
-
-### Lost everything
-
-Drop all tables and reinstall:
-```bash
-php vendor/ados-labs/enterprise-admin-panel/elf/install.php --email=admin@example.com
+docker-compose up -d
+docker-compose ps
 ```
 
 ---
