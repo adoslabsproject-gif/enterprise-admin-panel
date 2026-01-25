@@ -48,8 +48,9 @@ if (file_exists($envFile)) {
 }
 
 $options = getopt('', [
-    'master-token:',
+    'token:',
     'email:',
+    'password:',
     'name:',
     'expires:',
     'json',
@@ -65,11 +66,12 @@ Creates a one-time emergency token for direct dashboard access.
 Bypasses password and 2FA verification.
 
 Usage:
-  php elf/token-emergency-create.php --master-token=TOKEN --email=EMAIL [options]
+  php elf/token-emergency-create.php --token=TOKEN --email=EMAIL --password=PASSWORD [options]
 
 Required:
-  --master-token=TOKEN   Your master CLI token
+  --token=TOKEN          Your master CLI token
   --email=EMAIL          Master admin email
+  --password=PASSWORD    Admin password
 
 Options:
   --name=NAME            Token name/description (default: "Emergency Login Token")
@@ -78,7 +80,7 @@ Options:
   --help                 Show this help
 
 Security:
-  - You will be prompted for your password (not passed via command line)
+  - Requires all three: master token + email + password
   - Token is ONE-TIME USE - invalidated after login
   - Token is HASHED in database (Argon2id)
   - STORE OFFLINE: Print and put in a safe
@@ -87,33 +89,27 @@ HELP;
     exit(0);
 }
 
-if (empty($options['master-token'])) {
-    echo "ERROR: --master-token is required\n";
+// Validate required parameters
+$requiredParams = ['token', 'email', 'password'];
+$missing = [];
+foreach ($requiredParams as $param) {
+    if (empty($options[$param])) {
+        $missing[] = "--{$param}";
+    }
+}
+
+if (!empty($missing)) {
+    echo "ERROR: Missing required parameters: " . implode(', ', $missing) . "\n";
+    echo "Run with --help for usage information.\n";
     exit(1);
 }
 
-if (empty($options['email'])) {
-    echo "ERROR: --email is required\n";
-    exit(1);
-}
-
-$masterToken = $options['master-token'];
+$masterToken = $options['token'];
 $email = $options['email'];
+$password = $options['password'];
 $tokenName = $options['name'] ?? 'Emergency Login Token';
 $expiresDays = isset($options['expires']) ? (int) $options['expires'] : 30;
 $jsonOutput = isset($options['json']);
-
-// Prompt for password (hidden input)
-echo "Enter your password: ";
-system('stty -echo 2>/dev/null');
-$password = trim(fgets(STDIN));
-system('stty echo 2>/dev/null');
-echo "\n";
-
-if (empty($password)) {
-    echo "ERROR: Password is required\n";
-    exit(1);
-}
 
 // Database connection
 $driver = $_ENV['DB_DRIVER'] ?? 'pgsql';

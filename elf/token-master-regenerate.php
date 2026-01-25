@@ -1,13 +1,13 @@
 #!/usr/bin/env php
 <?php
 /**
- * Enterprise Lightning Framework (ELF) - Generate Master Token
+ * Enterprise Lightning Framework (ELF) - Regenerate Master Token
  *
- * Creates the master CLI token for the admin user.
- * This token is required to create emergency tokens and sub-admin tokens.
+ * Regenerates the master CLI token for the admin user.
+ * Requires current token + email + password for authentication.
  *
  * Usage:
- *   php elf/token-master-generate.php --email=admin@example.com
+ *   php elf/token-master-regenerate.php --token=CURRENT_TOKEN --email=admin@example.com --password=PASSWORD
  */
 
 declare(strict_types=1);
@@ -43,57 +43,61 @@ if (file_exists($envFile)) {
 }
 
 $options = getopt('', [
+    'token:',
     'email:',
+    'password:',
     'json',
     'help',
 ]);
 
 if (isset($options['help'])) {
     echo <<<HELP
-Enterprise Lightning Framework (ELF) - Generate Master Token
-=============================================================
+Enterprise Lightning Framework (ELF) - Regenerate Master Token
+===============================================================
 
-Creates the master CLI token for admin operations.
-This token is required to create emergency tokens and sub-admin tokens.
+Regenerates the master CLI token.
+All three authentication factors are required: current token + email + password.
 
 Usage:
-  php elf/token-master-generate.php --email=EMAIL
+  php elf/token-master-regenerate.php --token=CURRENT_TOKEN --email=EMAIL --password=PASSWORD
 
 Required:
-  --email=EMAIL    Master admin email
+  --token=TOKEN           Current master CLI token
+  --email=EMAIL           Admin email address
+  --password=PASSWORD     Admin password
 
 Options:
-  --json           Output as JSON
-  --help           Show this help
+  --json                  Output as JSON
+  --help                  Show this help
 
 Security:
-  - You will be prompted for your password
-  - Token is shown ONCE - save it securely
-  - Token is hashed (Argon2id) in database
+  - Requires all three: current master token + email + password
+  - The new token is shown ONCE - save it securely
+  - Old token is immediately invalidated
 
 HELP;
     exit(0);
 }
 
-if (empty($options['email'])) {
-    echo "ERROR: --email is required\n";
+// Validate required parameters
+$requiredParams = ['token', 'email', 'password'];
+$missing = [];
+foreach ($requiredParams as $param) {
+    if (empty($options[$param])) {
+        $missing[] = "--{$param}";
+    }
+}
+
+if (!empty($missing)) {
+    echo "ERROR: Missing required parameters: " . implode(', ', $missing) . "\n";
+    echo "Run with --help for usage information.\n";
     exit(1);
 }
 
+$token = $options['token'];
 $email = $options['email'];
+$password = $options['password'];
 $jsonOutput = isset($options['json']);
-
-// Prompt for password
-echo "Enter your password: ";
-system('stty -echo 2>/dev/null');
-$password = trim(fgets(STDIN));
-system('stty echo 2>/dev/null');
-echo "\n";
-
-if (empty($password)) {
-    echo "ERROR: Password is required\n";
-    exit(1);
-}
 
 // Database connection
 $driver = $_ENV['DB_DRIVER'] ?? 'pgsql';
@@ -115,57 +119,111 @@ try {
         PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
     ]);
 } catch (PDOException $e) {
-    echo "ERROR: Database connection failed: {$e->getMessage()}\n";
+    $error = "Database connection failed: {$e->getMessage()}";
+    if ($jsonOutput) {
+        echo json_encode(['success' => false, 'error' => $error], JSON_PRETTY_PRINT) . "\n";
+    } else {
+        echo "ERROR: {$error}\n";
+    }
     exit(1);
 }
 
 // ============================================================================
-// Verify user and password
+// Verify user: email + password + token (all three required)
 // ============================================================================
 
-$stmt = $pdo->prepare('SELECT id, password_hash, is_master FROM admin_users WHERE email = ? AND is_active = true');
+$stmt = $pdo->prepare('SELECT id, password_hash, cli_token_hash, is_master, is_active FROM admin_users WHERE email = ?');
 $stmt->execute([$email]);
 $user = $stmt->fetch();
 
 if (!$user) {
-    echo "ERROR: User not found: {$email}\n";
+    $error = "User not found: {$email}";
+    if ($jsonOutput) {
+        echo json_encode(['success' => false, 'error' => $error], JSON_PRETTY_PRINT) . "\n";
+    } else {
+        echo "ERROR: {$error}\n";
+    }
+    exit(1);
+}
+
+if (!$user['is_active']) {
+    $error = "User account is deactivated";
+    if ($jsonOutput) {
+        echo json_encode(['success' => false, 'error' => $error], JSON_PRETTY_PRINT) . "\n";
+    } else {
+        echo "ERROR: {$error}\n";
+    }
     exit(1);
 }
 
 if (!$user['is_master']) {
-    echo "ERROR: Only master admin can generate master tokens\n";
+    $error = "Only master admin can regenerate master token";
+    if ($jsonOutput) {
+        echo json_encode(['success' => false, 'error' => $error], JSON_PRETTY_PRINT) . "\n";
+    } else {
+        echo "ERROR: {$error}\n";
+    }
     exit(1);
 }
 
+// Verify password
 if (!password_verify($password, $user['password_hash'])) {
-    echo "ERROR: Invalid password\n";
+    $error = "Invalid password";
+    if ($jsonOutput) {
+        echo json_encode(['success' => false, 'error' => $error], JSON_PRETTY_PRINT) . "\n";
+    } else {
+        echo "ERROR: {$error}\n";
+    }
     exit(1);
 }
 
-echo "  [OK] Authentication verified\n\n";
+// Verify current master token
+if (empty($user['cli_token_hash'])) {
+    $error = "No master token set for this user";
+    if ($jsonOutput) {
+        echo json_encode(['success' => false, 'error' => $error], JSON_PRETTY_PRINT) . "\n";
+    } else {
+        echo "ERROR: {$error}\n";
+    }
+    exit(1);
+}
+
+if (!password_verify($token, $user['cli_token_hash'])) {
+    $error = "Invalid current master token";
+    if ($jsonOutput) {
+        echo json_encode(['success' => false, 'error' => $error], JSON_PRETTY_PRINT) . "\n";
+    } else {
+        echo "ERROR: {$error}\n";
+    }
+    exit(1);
+}
+
+if (!$jsonOutput) {
+    echo "  [OK] Authentication verified (token + email + password)\n\n";
+}
 
 // ============================================================================
-// Generate master token
+// Generate new master token
 // ============================================================================
 
 // Format: master-XXXXXXXX-XXXXXXXX-XXXXXXXX-XXXXXXXX (128 bits)
-$plainToken = 'master-' . implode('-', str_split(bin2hex(random_bytes(16)), 8));
+$newPlainToken = generate_master_token();
 
 // Hash with Argon2id for storage
-$tokenHash = password_hash($plainToken, PASSWORD_ARGON2ID, [
+$newTokenHash = password_hash($newPlainToken, PASSWORD_ARGON2ID, [
     'memory_cost' => 65536,
     'time_cost' => 4,
     'threads' => 3,
 ]);
 
-// Store in database
-$stmt = $pdo->prepare('UPDATE admin_users SET cli_token_hash = ? WHERE id = ?');
-$stmt->execute([$tokenHash, $user['id']]);
+// Update in database
+$stmt = $pdo->prepare('UPDATE admin_users SET cli_token_hash = ?, cli_token_generated_at = NOW(), cli_token_generation_count = cli_token_generation_count + 1 WHERE id = ?');
+$stmt->execute([$newTokenHash, $user['id']]);
 
 // Audit log
 $stmt = $pdo->prepare("
     INSERT INTO admin_audit_log (user_id, action, metadata, ip_address, created_at)
-    VALUES (?, 'master_token_generated', ?, 'CLI', NOW())
+    VALUES (?, 'master_token_regenerated', ?, 'CLI', NOW())
 ");
 $stmt->execute([
     $user['id'],
@@ -179,26 +237,24 @@ $stmt->execute([
 if ($jsonOutput) {
     echo json_encode([
         'success' => true,
-        'token' => $plainToken,
+        'token' => $newPlainToken,
         'warning' => 'SAVE THIS TOKEN! It will NOT be shown again.',
     ], JSON_PRETTY_PRINT) . "\n";
     exit(0);
 }
 
 echo "╔══════════════════════════════════════════════════════════════════════════════╗\n";
-echo "║  MASTER TOKEN GENERATED - SAVE IT NOW!                                      ║\n";
+echo "║  NEW MASTER TOKEN GENERATED - SAVE IT NOW!                                  ║\n";
 echo "╚══════════════════════════════════════════════════════════════════════════════╝\n";
 echo "\n";
 echo "┌────────────────────────────────────────────────────────────────────────────────┐\n";
-echo "│  YOUR MASTER TOKEN (save in password manager):                                │\n";
+echo "│  YOUR NEW MASTER TOKEN (save in password manager):                            │\n";
 echo "├────────────────────────────────────────────────────────────────────────────────┤\n";
 echo "│                                                                               │\n";
-printf("│  %-77s│\n", $plainToken);
+printf("│  %-77s│\n", $newPlainToken);
 echo "│                                                                               │\n";
 echo "└────────────────────────────────────────────────────────────────────────────────┘\n";
 echo "\n";
-echo "This token is required to:\n";
-echo "  - Create emergency recovery tokens\n";
-echo "  - Create sub-admin tokens\n";
-echo "  - Perform sensitive CLI operations\n\n";
-echo "[!!] This token will NOT be shown again!\n\n";
+echo "  - Old token has been invalidated\n";
+echo "  - This token will NOT be shown again\n";
+echo "\n";

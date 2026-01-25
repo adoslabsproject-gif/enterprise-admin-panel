@@ -103,24 +103,45 @@ Open the URL from Step 4 in your browser.
 
 All commands are in the `elf/` directory.
 
-### Generate Master Token
+**Important:** All CLI commands (except `token-emergency-use.php`) require three authentication factors:
+- `--token=` Master CLI token
+- `--email=` Admin email
+- `--password=` Admin password
+
+This triple authentication prevents unauthorized access even if one factor is compromised.
+
+### Change Password
 
 ```bash
-php elf/token-master-generate.php
+php elf/password-change.php --token=MASTER_TOKEN --email=admin@example.com --password=CURRENT --new-password=NEW
 ```
 
-Use this token to:
-- Get the current admin URL
-- Create emergency recovery tokens
-- Change admin password
+Requirements for new password:
+- Minimum 12 characters
+- At least 1 number
+- At least 1 special character (!@#$%^&*-_=+)
+
+After password change:
+- All active sessions are invalidated
+- Master CLI token remains unchanged
+- Admin URL remains unchanged
+
+### Regenerate Master Token
+
+```bash
+php elf/token-master-regenerate.php --token=CURRENT_TOKEN --email=admin@example.com --password=PASSWORD
+```
+
+Generates a new master CLI token. The old token is immediately invalidated.
 
 ### Create Emergency Token (Bypass 2FA)
 
 ```bash
-php elf/token-emergency-create.php --master-token=YOUR_MASTER_TOKEN
+php elf/token-emergency-create.php --token=MASTER_TOKEN --email=admin@example.com --password=PASSWORD
 ```
 
-Creates a one-time token to bypass 2FA if you lose access.
+Creates a one-time emergency token to bypass login (including 2FA) if you lose access.
+Store this token offline (printed, in a safe).
 
 ### Use Emergency Token
 
@@ -128,6 +149,7 @@ Creates a one-time token to bypass 2FA if you lose access.
 php elf/token-emergency-use.php --token=EMERGENCY_TOKEN
 ```
 
+Uses the emergency token to reveal the admin URL. The token is invalidated after use.
 Or use it via the web interface: click "Emergency Recovery" on the login page.
 
 ---
@@ -242,15 +264,26 @@ php elf/install.php --driver=mysql --port=3306
 ### Password Requirements
 
 - Minimum 12 characters
+- At least 1 number
+- At least 1 special character
 - Argon2id hashing
 - Account lockout after 5 failed attempts
+
+### Master Token Security
+
+The master CLI token is:
+- Generated once during installation (shown only once!)
+- Hashed with Argon2id in the database
+- Required for all CLI operations
+- Independent from your password (changing password doesn't affect token)
 
 ### Recovery Process
 
 If locked out:
-1. Generate emergency token: `php elf/token-emergency-create.php --master-token=...`
-2. Use it on the login page or via CLI
-3. Token is single-use and expires in 24 hours
+1. Create emergency token: `php elf/token-emergency-create.php --token=MASTER_TOKEN --email=EMAIL --password=PASSWORD`
+2. Use it via CLI: `php elf/token-emergency-use.php --token=EMERGENCY_TOKEN`
+3. Or use it in browser: `/emergency-login?token=EMERGENCY_TOKEN`
+4. Token is single-use and expires in 30 days by default
 
 ### URL Rotation
 
@@ -271,9 +304,10 @@ enterprise-admin-panel/
 ├── elf/                    # CLI tools and Docker
 │   ├── docker-compose.yml  # PostgreSQL, MySQL, Redis, Mailpit
 │   ├── install.php         # First-time installation
-│   ├── token-master-generate.php
-│   ├── token-emergency-create.php
-│   └── token-emergency-use.php
+│   ├── password-change.php # Change admin password
+│   ├── token-master-regenerate.php # Regenerate master token
+│   ├── token-emergency-create.php  # Create emergency token
+│   └── token-emergency-use.php     # Use emergency token
 ├── public/                 # Web root
 │   ├── index.php           # Entry point
 │   ├── css/                # Stylesheets (CSP compliant)
@@ -310,6 +344,7 @@ See [docs/FRAMEWORK.md](docs/FRAMEWORK.md) for framework architecture.
 
 ## Documentation
 
+- [CLI Commands](docs/CLI-COMMANDS.md) - Full CLI reference with examples
 - [URL Security](docs/URL-SECURITY.md) - How cryptographic URLs work
 - [2FA Setup](docs/2FA-SETUP.md) - Configure multi-channel authentication
 - [Module Development](docs/MODULES.md) - Create custom admin modules
@@ -321,9 +356,10 @@ See [docs/FRAMEWORK.md](docs/FRAMEWORK.md) for framework architecture.
 
 ### "404 Not Found" on /admin
 
-Expected behavior. Use the URL from installation or run:
+Expected behavior. The admin URL is secret and was shown only during installation.
+If you lost it, use an emergency token:
 ```bash
-php elf/token-master-generate.php
+php elf/token-emergency-use.php --token=YOUR_EMERGENCY_TOKEN
 ```
 
 ### "Invalid credentials"
@@ -341,10 +377,15 @@ WHERE email = 'admin@example.com';
 
 ### Lost master token
 
-You need database access to generate a new one:
-```bash
-php elf/token-master-generate.php --force-new
+If you lost your master token, you need to reset it manually in the database:
+```sql
+-- First, generate a new token hash manually:
+-- Run: php -r "echo password_hash('your-new-token', PASSWORD_ARGON2ID);"
+-- Then update the database:
+UPDATE admin_users SET cli_token_hash = 'PASTE_HASH_HERE' WHERE email = 'admin@example.com';
 ```
+
+Or reinstall by dropping all tables and running `php elf/install.php` again.
 
 ---
 

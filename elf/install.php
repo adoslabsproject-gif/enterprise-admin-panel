@@ -3,14 +3,13 @@
 /**
  * Enterprise Lightning Framework (ELF) - First-Time Installation
  *
- * THIS SCRIPT SHOWS THE ADMIN URL ONLY ONCE!
- * Save it securely - you won't be able to see it again without recovery.
+ * THIS SCRIPT SHOWS CREDENTIALS ONLY ONCE!
+ * Save the admin URL, password, and master token securely.
  *
  * Usage:
  *   php elf/install.php
+ *   php elf/install.php --email=admin@company.com
  *   php elf/install.php --driver=mysql
- *   php elf/install.php --send-email=admin@company.com
- *   php elf/install.php --send-telegram=123456789
  */
 
 declare(strict_types=1);
@@ -62,8 +61,7 @@ $options = getopt('', [
     'database:',
     'username:',
     'password:',
-    'admin-email:',
-    'admin-password:',
+    'email:',
     'admin-name:',
     'send-email:',
     'send-telegram:',
@@ -82,9 +80,9 @@ Enterprise Lightning Framework (ELF) - First-Time Installation
 
 This script:
 1. Runs all database migrations
-2. Creates the admin user
-3. Generates the SECURE ADMIN URL
-4. Shows the URL ONCE (save it!)
+2. Creates the master admin user with secure password
+3. Generates the SECURE ADMIN URL (shown ONCE!)
+4. Generates the MASTER CLI TOKEN (shown ONCE!)
 
 Usage:
   php elf/install.php [options]
@@ -96,8 +94,7 @@ Options:
   --database=DB           Database name (default: admin_panel)
   --username=USER         Database username (default: admin)
   --password=PASS         Database password (default: secret)
-  --admin-email=EMAIL     Admin email (default: admin@example.com)
-  --admin-password=PASS   Admin password (default: random generated)
+  --email=EMAIL           Admin email (default: admin@example.com)
   --admin-name=NAME       Admin name (default: Administrator)
   --send-email=EMAIL      Send credentials to this email
   --send-telegram=ID      Send credentials to this Telegram chat ID
@@ -106,9 +103,13 @@ Options:
   --help                  Show this help
 
 SECURITY WARNING:
-  The admin URL is shown ONLY ONCE during installation!
-  Save it in a password manager or secure location.
-  You will NOT be able to retrieve it without the recovery process.
+  All credentials are shown ONLY ONCE during installation!
+  - Admin URL
+  - Admin Password
+  - Master CLI Token
+
+  Save them in a password manager or secure location.
+  You will NOT be able to retrieve them without the recovery process.
 
 HELP;
     exit(0);
@@ -125,8 +126,8 @@ $database = $options['database'] ?? 'admin_panel';
 $username = $options['username'] ?? 'admin';
 $password = $options['password'] ?? 'secret';
 
-$adminEmail = $options['admin-email'] ?? 'admin@example.com';
-$adminPassword = $options['admin-password'] ?? bin2hex(random_bytes(12)); // Random 24-char password
+$adminEmail = $options['email'] ?? 'admin@example.com';
+$adminPassword = generate_secure_password(20); // Secure password with special chars
 $adminName = $options['admin-name'] ?? 'Administrator';
 
 $sendEmail = $options['send-email'] ?? null;
@@ -226,10 +227,10 @@ try {
         echo "╚══════════════════════════════════════════════════════════════════╝\n";
         echo "\n";
         echo "This admin panel was already installed on: {$installedAt}\n\n";
-        echo "The admin URL was shown during the first installation.\n";
-        echo "For security, it cannot be displayed again.\n\n";
-        echo "If you lost the URL, use emergency recovery:\n";
-        echo "  php elf/token-emergency-use.php --token=YOUR_TOKEN\n\n";
+        echo "The admin URL and credentials were shown during the first installation.\n";
+        echo "For security, they cannot be displayed again.\n\n";
+        echo "If you lost access, use emergency recovery:\n";
+        echo "  php elf/token-emergency-create.php --token=YOUR_MASTER_TOKEN --email=YOUR_EMAIL --password=YOUR_PASSWORD\n\n";
         exit(1);
     }
 } catch (PDOException $e) {
@@ -260,43 +261,62 @@ if (!empty($result['errors'])) {
 echo "\n";
 
 // ============================================================================
-// Create Admin User
+// Create Admin User with Master Token
 // ============================================================================
 
-echo "Creating admin user...\n";
+echo "Creating master admin user...\n";
 
 // Check if already exists
 $stmt = $pdo->prepare('SELECT id FROM admin_users WHERE email = ?');
 $stmt->execute([$adminEmail]);
 
 if ($stmt->fetch()) {
-    echo "  [!!] Admin user already exists: {$adminEmail}\n";
-} else {
-    $passwordHash = password_hash($adminPassword, PASSWORD_ARGON2ID, [
-        'memory_cost' => 65536,
-        'time_cost' => 4,
-        'threads' => 3,
-    ]);
-
-    $stmt = $pdo->prepare('
-        INSERT INTO admin_users (email, password_hash, name, role, permissions, is_active, is_master, created_at, updated_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?, NOW(), NOW())
-    ');
-
-    $stmt->execute([
-        $adminEmail,
-        $passwordHash,
-        $adminName,
-        'super_admin',
-        json_encode(['*']),
-        true,
-        true, // MASTER ADMIN
-    ]);
-
-    echo "  [OK] Admin user created: {$adminEmail} (MASTER)\n";
+    echo "  [FAIL] Admin user already exists: {$adminEmail}\n";
+    echo "  If you need to reset, drop the admin_users table and re-run install.\n\n";
+    exit(1);
 }
 
-echo "\n";
+// Hash password with Argon2id
+$passwordHash = password_hash($adminPassword, PASSWORD_ARGON2ID, [
+    'memory_cost' => 65536,
+    'time_cost' => 4,
+    'threads' => 3,
+]);
+
+// Generate master CLI token
+$plainMasterToken = generate_master_token();
+
+// Hash master token with Argon2id (like passwords)
+$masterTokenHash = password_hash($plainMasterToken, PASSWORD_ARGON2ID, [
+    'memory_cost' => 65536,
+    'time_cost' => 4,
+    'threads' => 3,
+]);
+
+$stmt = $pdo->prepare('
+    INSERT INTO admin_users (
+        email, password_hash, name, role, permissions,
+        is_active, is_master, cli_token_hash, cli_token_generated_at,
+        created_at, updated_at
+    )
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW(), NOW())
+');
+
+$stmt->execute([
+    $adminEmail,
+    $passwordHash,
+    $adminName,
+    'super_admin',
+    json_encode(['*']),
+    true,
+    true, // MASTER ADMIN
+    $masterTokenHash,
+]);
+
+$adminUserId = $pdo->lastInsertId();
+
+echo "  [OK] Master admin created: {$adminEmail}\n";
+echo "  [OK] Master CLI token generated\n\n";
 
 // ============================================================================
 // Generate and ENCRYPT the Admin URL
@@ -310,35 +330,13 @@ $adminUrl = '/x-' . bin2hex(random_bytes(16));
 // ENCRYPT before storing in database
 $encryptedUrl = $encryption->encrypt($adminUrl);
 
-// Check if admin_base_path exists
-$stmt = $pdo->query("SELECT config_value FROM admin_config WHERE config_key = 'admin_base_path'");
-$existingUrl = $stmt->fetchColumn();
-
-$isFirstInstall = false;
-
-if ($existingUrl) {
-    // URL already exists - this is a re-install, DO NOT show it
-    echo "  [!!] Admin URL already configured (encrypted in database)\n";
-    echo "  [!!] For security, the URL cannot be displayed again.\n";
-    echo "  [!!] Use emergency recovery token if you lost it.\n\n";
-
-    // Try to decrypt existing URL for internal use
-    $adminUrl = $encryption->decrypt($existingUrl);
-    if ($adminUrl === null) {
-        echo "  [FAIL] Error: Cannot decrypt existing URL. APP_KEY may have changed.\n";
-        exit(1);
-    }
-} else {
-    $isFirstInstall = true;
-
-    // Save ENCRYPTED URL
-    $stmt = $pdo->prepare("
-        INSERT INTO admin_config (config_key, config_value, value_type, description, is_sensitive, is_editable)
-        VALUES ('admin_base_path', ?, 'string', 'Encrypted admin panel base URL', true, false)
-    ");
-    $stmt->execute([$encryptedUrl]);
-    echo "  [OK] Admin URL generated and encrypted\n\n";
-}
+// Save ENCRYPTED URL
+$stmt = $pdo->prepare("
+    INSERT INTO admin_config (config_key, config_value, value_type, description, is_sensitive, is_editable)
+    VALUES ('admin_base_path', ?, 'string', 'Encrypted admin panel base URL', true, false)
+");
+$stmt->execute([$encryptedUrl]);
+echo "  [OK] Admin URL generated and encrypted\n\n";
 
 // ============================================================================
 // Mark as installed (prevents showing URL again)
@@ -351,14 +349,31 @@ $stmt = $pdo->prepare("
 ");
 $stmt->execute([date('Y-m-d H:i:s')]);
 
-// Build full URL (needed for email/telegram notifications)
+// ============================================================================
+// Audit log
+// ============================================================================
+
+$stmt = $pdo->prepare("
+    INSERT INTO admin_audit_log (user_id, action, metadata, ip_address, created_at)
+    VALUES (?, 'system_installed', ?, 'CLI', NOW())
+");
+$stmt->execute([
+    $adminUserId,
+    json_encode([
+        'email' => $adminEmail,
+        'driver' => $driver,
+        'host' => $host,
+    ]),
+]);
+
+// Build full URL
 $fullUrl = "http://localhost:8080{$adminUrl}/login";
 
 // ============================================================================
 // Optional: Send via Email (using Mailpit in dev, SMTP in production)
 // ============================================================================
 
-if ($sendEmail && $isFirstInstall) {
+if ($sendEmail) {
     echo "Sending credentials to {$sendEmail}...\n";
 
     $smtpHost = getenv('SMTP_HOST') ?: 'localhost';
@@ -379,9 +394,12 @@ LOGIN CREDENTIALS:
 Email:    {$adminEmail}
 Password: {$adminPassword}
 
+MASTER CLI TOKEN (for emergency recovery and CLI operations):
+{$plainMasterToken}
+
 SECURITY WARNINGS:
 1. Save these credentials in a password manager
-2. The URL above will NOT be shown again
+2. The URL, password, and token will NOT be shown again
 3. /admin/login is BLOCKED - only the secret URL works
 4. Change your password after first login
 5. Enable 2FA for maximum security
@@ -427,7 +445,7 @@ EMAIL;
 // Optional: Send via Telegram
 // ============================================================================
 
-if ($sendTelegram && $isFirstInstall) {
+if ($sendTelegram) {
     echo "Sending credentials to Telegram chat {$sendTelegram}...\n";
 
     $botToken = getenv('TELEGRAM_BOT_TOKEN');
@@ -443,6 +461,9 @@ if ($sendTelegram && $isFirstInstall) {
 *Credentials:*
 Email: `{$adminEmail}`
 Password: `{$adminPassword}`
+
+*Master CLI Token:*
+`{$plainMasterToken}`
 
 *Security:* Save these credentials securely!
 TELEGRAM;
@@ -481,7 +502,13 @@ TELEGRAM;
 if ($jsonOutput) {
     $output = [
         'success' => true,
-        'first_install' => $isFirstInstall,
+        'admin_url' => $fullUrl,
+        'admin_base_path' => $adminUrl,
+        'credentials' => [
+            'email' => $adminEmail,
+            'password' => $adminPassword,
+        ],
+        'master_token' => $plainMasterToken,
         'database' => [
             'driver' => $driver,
             'host' => $host,
@@ -490,75 +517,63 @@ if ($jsonOutput) {
         ],
         'next_steps' => [
             'Start server: php -S localhost:8080 -t public',
+            'Open: ' . $fullUrl,
+            'Login with credentials above',
         ],
+        'warning' => 'SAVE THESE CREDENTIALS! They will NOT be shown again.',
     ];
-
-    // Only include sensitive data on first install
-    if ($isFirstInstall) {
-        $output['admin_url'] = $fullUrl;
-        $output['admin_base_path'] = $adminUrl;
-        $output['credentials'] = [
-            'email' => $adminEmail,
-            'password' => $adminPassword,
-        ];
-        $output['next_steps'][] = 'Open: ' . $fullUrl;
-        $output['next_steps'][] = 'Login with credentials above';
-    } else {
-        $output['message'] = 'Already installed. URL hidden for security.';
-    }
 
     echo json_encode($output, JSON_PRETTY_PRINT) . "\n";
     exit(0);
 }
 
 // Human-readable output
-if ($isFirstInstall) {
-    echo "\n";
-    echo "╔══════════════════════════════════════════════════════════════════╗\n";
-    echo "║  [!!] SAVE THESE CREDENTIALS NOW - SHOWN ONLY ONCE!             ║\n";
-    echo "╚══════════════════════════════════════════════════════════════════╝\n";
-    echo "\n";
-    echo "┌────────────────────────────────────────────────────────────────┐\n";
-    echo "│  ADMIN PANEL URL (SECRET - DO NOT SHARE!)                      │\n";
-    echo "├────────────────────────────────────────────────────────────────┤\n";
-    echo "│                                                                │\n";
-    printf("│  %-62s│\n", $fullUrl);
-    echo "│                                                                │\n";
-    echo "├────────────────────────────────────────────────────────────────┤\n";
-    echo "│  LOGIN CREDENTIALS                                             │\n";
-    echo "├────────────────────────────────────────────────────────────────┤\n";
-    printf("│  Email:    %-51s│\n", $adminEmail);
-    printf("│  Password: %-51s│\n", $adminPassword);
-    echo "│                                                                │\n";
-    echo "└────────────────────────────────────────────────────────────────┘\n";
-    echo "\n";
-    echo "╔══════════════════════════════════════════════════════════════════╗\n";
-    echo "║  SECURITY WARNINGS                                              ║\n";
-    echo "╠══════════════════════════════════════════════════════════════════╣\n";
-    echo "║  1. Save these credentials in a PASSWORD MANAGER                ║\n";
-    echo "║  2. The URL above will NEVER be shown again                     ║\n";
-    echo "║  3. /admin/login is BLOCKED - only the secret URL works         ║\n";
-    echo "║  4. Change your password after first login                      ║\n";
-    echo "║  5. Enable 2FA for maximum security                             ║\n";
-    echo "║  6. Generate emergency recovery tokens from the dashboard       ║\n";
-    echo "╚══════════════════════════════════════════════════════════════════╝\n";
-    echo "\n";
-} else {
-    echo "\n";
-    echo "╔══════════════════════════════════════════════════════════════════╗\n";
-    echo "║  ALREADY INSTALLED                                              ║\n";
-    echo "╚══════════════════════════════════════════════════════════════════╝\n";
-    echo "\n";
-    echo "The admin URL is encrypted in the database and cannot be shown.\n\n";
-    echo "If you lost access:\n";
-    echo "  1. Use your emergency recovery token (if you created one)\n";
-    echo "  2. Or reset the database and re-install\n\n";
-}
+echo "\n";
+echo "╔══════════════════════════════════════════════════════════════════════════════╗\n";
+echo "║  [!!] SAVE THESE CREDENTIALS NOW - SHOWN ONLY ONCE!                         ║\n";
+echo "╚══════════════════════════════════════════════════════════════════════════════╝\n";
+echo "\n";
+echo "┌──────────────────────────────────────────────────────────────────────────────┐\n";
+echo "│  ADMIN PANEL URL (SECRET - DO NOT SHARE!)                                   │\n";
+echo "├──────────────────────────────────────────────────────────────────────────────┤\n";
+echo "│                                                                             │\n";
+printf("│  %-75s│\n", $fullUrl);
+echo "│                                                                             │\n";
+echo "├──────────────────────────────────────────────────────────────────────────────┤\n";
+echo "│  LOGIN CREDENTIALS                                                          │\n";
+echo "├──────────────────────────────────────────────────────────────────────────────┤\n";
+printf("│  Email:    %-64s│\n", $adminEmail);
+printf("│  Password: %-64s│\n", $adminPassword);
+echo "│                                                                             │\n";
+echo "├──────────────────────────────────────────────────────────────────────────────┤\n";
+echo "│  MASTER CLI TOKEN (for emergency recovery and CLI operations)               │\n";
+echo "├──────────────────────────────────────────────────────────────────────────────┤\n";
+echo "│                                                                             │\n";
+printf("│  %-75s│\n", $plainMasterToken);
+echo "│                                                                             │\n";
+echo "└──────────────────────────────────────────────────────────────────────────────┘\n";
+echo "\n";
+echo "╔══════════════════════════════════════════════════════════════════════════════╗\n";
+echo "║  SECURITY WARNINGS                                                          ║\n";
+echo "╠══════════════════════════════════════════════════════════════════════════════╣\n";
+echo "║  1. Save ALL credentials in a PASSWORD MANAGER                              ║\n";
+echo "║  2. The URL, password, and token will NEVER be shown again                  ║\n";
+echo "║  3. /admin/login is BLOCKED - only the secret URL works                     ║\n";
+echo "║  4. Change your password after first login                                  ║\n";
+echo "║  5. Enable 2FA for maximum security                                         ║\n";
+echo "║  6. The Master Token is required for all CLI operations                     ║\n";
+echo "╚══════════════════════════════════════════════════════════════════════════════╝\n";
+echo "\n";
+echo "MASTER TOKEN USAGE:\n";
+echo "  All CLI commands require: --token=YOUR_TOKEN --email=YOUR_EMAIL --password=YOUR_PASSWORD\n\n";
+echo "  Examples:\n";
+echo "    php elf/password-change.php --token=... --email=... --password=... --new-password=...\n";
+echo "    php elf/token-emergency-create.php --token=... --email=... --password=...\n";
+echo "    php elf/token-master-regenerate.php --token=... --email=... --password=...\n";
+echo "\n";
 echo "Next steps:\n";
 echo "  1. Start server:  php -S localhost:8080 -t public\n";
-if ($isFirstInstall) {
-    echo "  2. Open browser:  {$fullUrl}\n";
-    echo "  3. Login with:    {$adminEmail} / {$adminPassword}\n";
-}
+echo "  2. Open browser:  {$fullUrl}\n";
+echo "  3. Login with:    {$adminEmail} / {$adminPassword}\n";
 echo "\n";
 echo "Installation complete!\n\n";
