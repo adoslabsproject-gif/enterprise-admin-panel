@@ -1,0 +1,294 @@
+#!/usr/bin/env php
+<?php
+/**
+ * Enterprise Admin Panel - Secure URL Retrieval
+ *
+ * SECURITY:
+ * =========
+ * - Requires personal CLI token (unique per admin)
+ * - Rate limited (10 attempts/hour)
+ * - All access is logged
+ * - Token is NOT the same as session token
+ *
+ * USAGE:
+ * ======
+ * php bin/admin-url --token=YOUR_PERSONAL_TOKEN
+ * php bin/admin-url -t YOUR_PERSONAL_TOKEN
+ * php bin/admin-url --generate-token --user-id=1  (first time setup)
+ * php bin/admin-url --rotate  (force URL rotation)
+ * php bin/admin-url --configure  (configure rotation settings)
+ *
+ * FIRST TIME SETUP:
+ * =================
+ * 1. Generate your personal token: php bin/admin-url --generate-token --user-id=1
+ * 2. Save the token securely (password manager, etc.)
+ * 3. Use it to retrieve URL: php bin/admin-url --token=YOUR_TOKEN
+ *
+ * @version 1.0.0
+ */
+
+declare(strict_types=1);
+
+// Autoload
+$autoloadPaths = [
+    __DIR__ . '/../vendor/autoload.php',
+    __DIR__ . '/../../vendor/autoload.php',
+    __DIR__ . '/../../../vendor/autoload.php',
+    __DIR__ . '/../../../../vendor/autoload.php',
+];
+
+$autoloaded = false;
+foreach ($autoloadPaths as $path) {
+    if (file_exists($path)) {
+        require_once $path;
+        $autoloaded = true;
+        break;
+    }
+}
+
+if (!$autoloaded) {
+    fwrite(STDERR, "Error: Could not find autoload.php\n");
+    exit(1);
+}
+
+use AdosLabs\AdminPanel\Services\ConfigService;
+use AdosLabs\AdminPanel\Services\AuditService;
+use AdosLabs\AdminPanel\Services\AdminUrlService;
+
+// ============================================================================
+// Parse Arguments
+// ============================================================================
+
+$options = getopt('t:h', [
+    'token:',
+    'generate-token',
+    'user-id:',
+    'rotate',
+    'configure',
+    'interval:',
+    'webhook:',
+    'email:',
+    'help',
+    'driver:',
+    'host:',
+    'port:',
+    'database:',
+    'username:',
+    'password:',
+]);
+
+// Help
+if (isset($options['h']) || isset($options['help'])) {
+    echo <<<HELP
+Enterprise Admin Panel - Secure URL Retrieval
+==============================================
+
+USAGE:
+  php bin/admin-url [options]
+
+OPTIONS:
+  -t, --token=TOKEN       Your personal CLI token to retrieve admin URL
+  --generate-token        Generate a new personal CLI token
+  --user-id=ID            User ID for token generation (required with --generate-token)
+  --rotate                Force URL rotation (regenerate admin URL)
+  --configure             Configure rotation settings
+  --interval=SECONDS      URL rotation interval (use with --configure)
+  --webhook=URL           Webhook URL for rotation notifications
+  --email=EMAIL           Email for rotation notifications
+  -h, --help              Show this help message
+
+DATABASE OPTIONS:
+  --driver=DRIVER         Database driver: postgresql or mysql (default: postgresql)
+  --host=HOST             Database host (default: localhost)
+  --port=PORT             Database port (default: 5432 or 3306)
+  --database=DB           Database name (default: admin_panel)
+  --username=USER         Database username (default: admin)
+  --password=PASS         Database password (default: secret)
+
+EXAMPLES:
+  # First time: generate your personal token
+  php bin/admin-url --generate-token --user-id=1
+
+  # Retrieve current admin URL
+  php bin/admin-url --token=YOUR_64_CHAR_TOKEN
+
+  # Force URL rotation
+  php bin/admin-url --rotate --token=YOUR_TOKEN
+
+  # Configure 1-hour rotation with webhook
+  php bin/admin-url --configure --interval=3600 --webhook=https://hooks.slack.com/...
+
+SECURITY NOTES:
+  - Each admin must have their OWN personal token
+  - Tokens are Argon2id hashed in database
+  - All URL retrievals are logged
+  - Rate limited: 10 failed attempts per hour blocks IP
+
+HELP;
+    exit(0);
+}
+
+// ============================================================================
+// Database Connection
+// ============================================================================
+
+$driver = $options['driver'] ?? getenv('DB_DRIVER') ?: 'postgresql';
+$host = $options['host'] ?? getenv('DB_HOST') ?: 'localhost';
+$port = $options['port'] ?? getenv('DB_PORT') ?: ($driver === 'mysql' ? '3306' : '5432');
+$database = $options['database'] ?? getenv('DB_DATABASE') ?: 'admin_panel';
+$username = $options['username'] ?? getenv('DB_USERNAME') ?: 'admin';
+$password = $options['password'] ?? getenv('DB_PASSWORD') ?: 'secret';
+
+$dsn = match ($driver) {
+    'mysql' => "mysql:host={$host};port={$port};dbname={$database};charset=utf8mb4",
+    default => "pgsql:host={$host};port={$port};dbname={$database}",
+};
+
+try {
+    $pdo = new PDO($dsn, $username, $password, [
+        PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
+        PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
+    ]);
+} catch (PDOException $e) {
+    fwrite(STDERR, "Database connection failed: {$e->getMessage()}\n");
+    exit(1);
+}
+
+// ============================================================================
+// Services
+// ============================================================================
+
+$configService = new ConfigService($pdo);
+$auditService = new AuditService($pdo);
+$adminUrlService = new AdminUrlService($pdo, $configService, $auditService);
+
+// ============================================================================
+// Commands
+// ============================================================================
+
+// Generate Token
+if (isset($options['generate-token'])) {
+    $userId = $options['user-id'] ?? null;
+
+    if ($userId === null) {
+        fwrite(STDERR, "Error: --user-id is required with --generate-token\n");
+        exit(1);
+    }
+
+    // Verify user exists
+    $stmt = $pdo->prepare('SELECT id, email FROM admin_users WHERE id = ?');
+    $stmt->execute([(int) $userId]);
+    $user = $stmt->fetch();
+
+    if (!$user) {
+        fwrite(STDERR, "Error: User ID {$userId} not found\n");
+        exit(1);
+    }
+
+    $token = $adminUrlService->generateCliToken((int) $userId);
+
+    echo "\n";
+    echo "╔══════════════════════════════════════════════════════════════════════╗\n";
+    echo "║  PERSONAL CLI TOKEN GENERATED                                         ║\n";
+    echo "╠══════════════════════════════════════════════════════════════════════╣\n";
+    echo "║  User: {$user['email']}\n";
+    echo "║  \n";
+    echo "║  YOUR TOKEN (save this securely!):\n";
+    echo "║  {$token}\n";
+    echo "║  \n";
+    echo "║  USAGE:\n";
+    echo "║  php bin/admin-url --token={$token}\n";
+    echo "║  \n";
+    echo "║  ⚠️  This token will NOT be shown again!\n";
+    echo "║  ⚠️  Store it in a password manager.\n";
+    echo "╚══════════════════════════════════════════════════════════════════════╝\n";
+    echo "\n";
+
+    exit(0);
+}
+
+// Configure Rotation
+if (isset($options['configure'])) {
+    $interval = isset($options['interval']) ? (int) $options['interval'] : null;
+    $webhook = $options['webhook'] ?? null;
+    $email = $options['email'] ?? null;
+
+    if ($interval !== null) {
+        $configService->set('url_rotation_interval', $interval, 'int');
+        echo "✓ Rotation interval set to {$interval} seconds\n";
+    }
+
+    if ($webhook !== null) {
+        $configService->set('rotation_webhook', $webhook, 'string');
+        echo "✓ Webhook URL set\n";
+    }
+
+    if ($email !== null) {
+        $configService->set('rotation_email', $email, 'string');
+        echo "✓ Notification email set\n";
+    }
+
+    if ($interval === null && $webhook === null && $email === null) {
+        // Show current config
+        echo "\nCurrent Configuration:\n";
+        echo "  Rotation interval: " . $configService->get('url_rotation_interval', 14400) . " seconds\n";
+        echo "  Notify on rotation: " . ($configService->get('notify_on_rotation', true) ? 'yes' : 'no') . "\n";
+        echo "  Webhook: " . ($configService->get('rotation_webhook') ?: '(not set)') . "\n";
+        echo "  Email: " . ($configService->get('rotation_email') ?: '(not set)') . "\n";
+    }
+
+    exit(0);
+}
+
+// Rotate URL
+if (isset($options['rotate'])) {
+    $newUrl = $adminUrlService->rotateUrl('manual_cli');
+
+    echo "\n";
+    echo "✓ Admin URL rotated successfully!\n";
+    echo "\n";
+    echo "New URL: {$newUrl}\n";
+    echo "\n";
+
+    exit(0);
+}
+
+// Retrieve URL with Token
+$token = $options['t'] ?? $options['token'] ?? null;
+
+if ($token === null) {
+    fwrite(STDERR, "Error: --token is required\n");
+    fwrite(STDERR, "Use --help for usage information\n");
+    exit(1);
+}
+
+$ipAddress = $_SERVER['REMOTE_ADDR'] ?? '127.0.0.1';
+$result = $adminUrlService->getUrlWithToken($token, $ipAddress);
+
+if (!$result['success']) {
+    fwrite(STDERR, "Error: {$result['error']}\n");
+    exit(1);
+}
+
+// Format expiry time
+$expiresIn = $result['expires_in'];
+$hours = floor($expiresIn / 3600);
+$minutes = floor(($expiresIn % 3600) / 60);
+$expiryStr = ($hours > 0 ? "{$hours}h " : '') . "{$minutes}m";
+
+echo "\n";
+echo "╔══════════════════════════════════════════════════════════════════════╗\n";
+echo "║  ENTERPRISE ADMIN PANEL - CURRENT URL                                 ║\n";
+echo "╠══════════════════════════════════════════════════════════════════════╣\n";
+echo "║  \n";
+echo "║  URL: {$result['url']}\n";
+echo "║  \n";
+echo "║  Full login URL:\n";
+echo "║  http://YOUR_DOMAIN{$result['url']}/login\n";
+echo "║  \n";
+echo "║  Expires in: {$expiryStr}\n";
+echo "║  \n";
+echo "╚══════════════════════════════════════════════════════════════════════╝\n";
+echo "\n";
+
+exit(0);

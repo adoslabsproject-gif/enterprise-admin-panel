@@ -1,0 +1,182 @@
+/* ================================================================
+ * Enterprise Admin Panel - PHP Error Log Page
+ * BEM naming convention with .eap- prefix
+ * ================================================================ */
+
+/* ================================================================
+ * Stat Cards
+ * ================================================================ */
+.eap-stat-card {
+    padding: 1.5rem;
+    border-radius: 0.5rem;
+    text-align: center;
+    background: var(--eap-bg-secondary, #f9fafb);
+    border: 1px solid var(--eap-border-color, #e5e7eb);
+}
+
+.eap-stat-card--danger {
+    border-color: rgba(239, 68, 68, 0.3);
+    background: rgba(239, 68, 68, 0.05);
+}
+
+.eap-stat-card--warning {
+    border-color: rgba(245, 158, 11, 0.3);
+    background: rgba(245, 158, 11, 0.05);
+}
+
+.eap-stat-card--info {
+    border-color: rgba(59, 130, 246, 0.3);
+    background: rgba(59, 130, 246, 0.05);
+}
+
+.eap-stat-card--secondary {
+    border-color: var(--eap-border-color, #e5e7eb);
+    background: var(--eap-bg-secondary, #f9fafb);
+}
+
+.eap-stat-card__value {
+    display: block;
+    font-size: 2rem;
+    font-weight: 700;
+    line-height: 1;
+    margin-bottom: 0.5rem;
+}
+
+.eap-stat-card--danger .eap-stat-card__value {
+    color: #ef4444;
+}
+
+.eap-stat-card--warning .eap-stat-card__value {
+    color: #f59e0b;
+}
+
+.eap-stat-card--info .eap-stat-card__value {
+    color: #3b82f6;
+}
+
+.eap-stat-card--secondary .eap-stat-card__value {
+    color: var(--eap-text-muted, #6b7280);
+}
+
+.eap-stat-card__label {
+    font-size: 0.875rem;
+    color: var(--eap-text-muted, #6b7280);
+}
+
+/* ================================================================
+ * Error List
+ * ================================================================ */
+.eap-error-list {
+    max-height: 600px;
+    overflow-y: auto;
+}
+
+.eap-error-item {
+    padding: 1rem;
+    border-bottom: 1px solid var(--eap-border-color, #e5e7eb);
+}
+
+.eap-error-item:last-child {
+    border-bottom: none;
+}
+
+.eap-error-item--danger {
+    background: rgba(239, 68, 68, 0.03);
+    border-left: 3px solid #ef4444;
+}
+
+.eap-error-item--warning {
+    background: rgba(245, 158, 11, 0.03);
+    border-left: 3px solid #f59e0b;
+}
+
+.eap-error-item--info {
+    background: rgba(59, 130, 246, 0.03);
+    border-left: 3px solid #3b82f6;
+}
+
+.eap-error-item--secondary {
+    background: var(--eap-bg-secondary, #f9fafb);
+    border-left: 3px solid var(--eap-border-color, #e5e7eb);
+}
+
+.eap-error-item__header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 0.5rem;
+}
+
+.eap-error-item__message {
+    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+    font-size: 0.875rem;
+    word-break: break-word;
+}
+
+.eap-error-item__location {
+    margin-top: 0.5rem;
+    font-size: 0.8125rem;
+    color: var(--eap-text-muted, #6b7280);
+}
+
+.eap-error-item__location code {
+    margin-right: 0.5rem;
+}
+
+/* ================================================================
+ * Stack Trace
+ * ================================================================ */
+.eap-error-item__trace {
+    margin-top: 0.75rem;
+}
+
+.eap-error-item__trace summary {
+    cursor: pointer;
+    font-size: 0.8125rem;
+    color: var(--eap-primary, #3b82f6);
+}
+
+.eap-error-item__trace pre {
+    margin-top: 0.5rem;
+    padding: 0.75rem;
+    background: var(--eap-bg-secondary, #f9fafb);
+    border-radius: 0.25rem;
+    font-size: 0.75rem;
+    overflow-x: auto;
+    white-space: pre-wrap;
+    word-break: break-word;
+}
+
+/* ================================================================
+ * Empty State
+ * ================================================================ */
+.eap-empty-state {
+    padding: 3rem;
+    text-align: center;
+    color: var(--eap-text-muted, #6b7280);
+}
+
+.eap-empty-state svg {
+    margin: 0 auto 1rem;
+    opacity: 0.5;
+}
+
+.eap-empty-state h3 {
+    margin-bottom: 0.5rem;
+    color: var(--eap-text-primary, #111827);
+}
+
+.eap-empty-state p {
+    margin-bottom: 0.5rem;
+}
+
+/* ================================================================
+ * Responsive
+ * ================================================================ */
+@media (max-width: 768px) {
+    .eap-error-item__header {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 0.5rem;
+    }
+}

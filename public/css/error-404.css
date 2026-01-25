@@ -1,0 +1,241 @@
+/* ================================================================
+ * Enterprise Admin Panel - 404 Not Found Error Styles
+ * BEM naming convention with .eap- prefix
+ * "Lost in the Matrix" concept - Digital rain, derezzed
+ * ================================================================ */
+
+/* ================================================================
+ * Base Reset (scoped)
+ * ================================================================ */
+.eap-error-404 *,
+.eap-error-404 *::before,
+.eap-error-404 *::after {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+/* ================================================================
+ * Page Layout
+ * ================================================================ */
+.eap-error-404 {
+    background: #0a0a0a;
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-family: 'Courier New', monospace;
+    overflow: hidden;
+    position: relative;
+}
+
+/* ================================================================
+ * Matrix Rain Canvas
+ * ================================================================ */
+.eap-error-404__matrix-rain {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    z-index: 0;
+    opacity: 0.3;
+}
+
+/* ================================================================
+ * Container
+ * ================================================================ */
+.eap-error-404__container {
+    position: relative;
+    z-index: 10;
+    text-align: center;
+    padding: 40px;
+    max-width: 600px;
+}
+
+/* ================================================================
+ * Error Code with Glitch Effect
+ * ================================================================ */
+.eap-error-404__code {
+    font-size: 150px;
+    font-weight: bold;
+    color: #00ff41;
+    text-shadow:
+        0 0 10px #00ff41,
+        0 0 20px #00ff41,
+        0 0 40px #00ff41,
+        0 0 80px #00ff41;
+    animation: eap-error-404-glitch 2s infinite;
+    position: relative;
+}
+
+.eap-error-404__code::before,
+.eap-error-404__code::after {
+    content: '404';
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+}
+
+.eap-error-404__code::before {
+    color: #ff0040;
+    animation: eap-error-404-glitch-1 0.3s infinite;
+    clip-path: polygon(0 0, 100% 0, 100% 35%, 0 35%);
+    transform: translate(-2px, -2px);
+}
+
+.eap-error-404__code::after {
+    color: #00d4ff;
+    animation: eap-error-404-glitch-2 0.3s infinite;
+    clip-path: polygon(0 65%, 100% 65%, 100% 100%, 0 100%);
+    transform: translate(2px, 2px);
+}
+
+@keyframes eap-error-404-glitch {
+    0%, 90%, 100% { transform: translate(0); }
+    92% { transform: translate(-5px, 0); }
+    94% { transform: translate(5px, 0); }
+    96% { transform: translate(-3px, 0); }
+    98% { transform: translate(3px, 0); }
+}
+
+@keyframes eap-error-404-glitch-1 {
+    0%, 100% { transform: translate(-2px, -2px); }
+    25% { transform: translate(2px, 0); }
+    50% { transform: translate(-1px, 2px); }
+    75% { transform: translate(1px, -1px); }
+}
+
+@keyframes eap-error-404-glitch-2 {
+    0%, 100% { transform: translate(2px, 2px); }
+    25% { transform: translate(-2px, 0); }
+    50% { transform: translate(1px, -2px); }
+    75% { transform: translate(-1px, 1px); }
+}
+
+/* ================================================================
+ * Title with Flicker Effect
+ * ================================================================ */
+.eap-error-404__title {
+    color: #00ff41;
+    font-size: 28px;
+    margin: 20px 0;
+    text-transform: uppercase;
+    letter-spacing: 8px;
+    animation: eap-error-404-flicker 3s infinite;
+}
+
+@keyframes eap-error-404-flicker {
+    0%, 19%, 21%, 23%, 25%, 54%, 56%, 100% {
+        opacity: 1;
+        text-shadow: 0 0 10px #00ff41;
+    }
+    20%, 24%, 55% {
+        opacity: 0.5;
+        text-shadow: none;
+    }
+}
+
+/* ================================================================
+ * Message
+ * ================================================================ */
+.eap-error-404__message {
+    color: #888;
+    font-size: 14px;
+    margin-bottom: 30px;
+    line-height: 1.8;
+}
+
+/* ================================================================
+ * Path Display
+ * ================================================================ */
+.eap-error-404__path {
+    color: #ff0040;
+    background: rgba(255, 0, 64, 0.1);
+    padding: 8px 16px;
+    border-radius: 4px;
+    display: inline-block;
+    margin: 10px 0 30px;
+    border: 1px solid rgba(255, 0, 64, 0.3);
+    font-size: 12px;
+    word-break: break-all;
+}
+
+/* ================================================================
+ * Back Button
+ * ================================================================ */
+.eap-error-404__back-btn {
+    display: inline-block;
+    padding: 15px 40px;
+    background: transparent;
+    color: #00ff41;
+    text-decoration: none;
+    border: 2px solid #00ff41;
+    font-family: 'Courier New', monospace;
+    font-size: 14px;
+    text-transform: uppercase;
+    letter-spacing: 3px;
+    transition: all 0.3s ease;
+    position: relative;
+    overflow: hidden;
+}
+
+.eap-error-404__back-btn::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: -100%;
+    width: 100%;
+    height: 100%;
+    background: linear-gradient(90deg, transparent, rgba(0, 255, 65, 0.2), transparent);
+    transition: left 0.5s ease;
+}
+
+.eap-error-404__back-btn:hover::before {
+    left: 100%;
+}
+
+.eap-error-404__back-btn:hover {
+    background: #00ff41;
+    color: #0a0a0a;
+    box-shadow: 0 0 30px rgba(0, 255, 65, 0.5);
+}
+
+/* ================================================================
+ * Terminal Line
+ * ================================================================ */
+.eap-error-404__terminal-line {
+    color: #00ff41;
+    font-size: 12px;
+    margin-top: 40px;
+    opacity: 0.6;
+}
+
+.eap-error-404__cursor {
+    animation: eap-error-404-blink 1s infinite;
+}
+
+@keyframes eap-error-404-blink {
+    0%, 50% { opacity: 1; }
+    51%, 100% { opacity: 0; }
+}
+
+/* ================================================================
+ * Responsive
+ * ================================================================ */
+@media (max-width: 480px) {
+    .eap-error-404__container {
+        padding: 20px;
+    }
+
+    .eap-error-404__code {
+        font-size: 80px;
+    }
+
+    .eap-error-404__title {
+        font-size: 20px;
+        letter-spacing: 4px;
+    }
+}

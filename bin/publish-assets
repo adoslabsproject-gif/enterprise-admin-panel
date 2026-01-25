@@ -1,0 +1,92 @@
+#!/usr/bin/env php
+<?php
+/**
+ * Asset Publisher CLI
+ *
+ * Publishes static assets from vendor packages to public directory.
+ *
+ * Usage:
+ *   php vendor/senza1dio/enterprise-admin-panel/bin/publish-assets [options]
+ *
+ * Options:
+ *   --force    Overwrite existing files
+ *   --verbose  Show detailed output
+ *   --help     Show this help
+ *
+ * @package senza1dio/enterprise-admin-panel
+ */
+
+// Find autoloader
+$autoloadPaths = [
+    __DIR__ . '/../vendor/autoload.php',           // Direct usage
+    __DIR__ . '/../../../autoload.php',            // In vendor/senza1dio/enterprise-admin-panel
+    __DIR__ . '/../../../../vendor/autoload.php',  // In packages/enterprise-admin-panel
+];
+
+$autoloader = null;
+foreach ($autoloadPaths as $path) {
+    if (file_exists($path)) {
+        $autoloader = $path;
+        break;
+    }
+}
+
+if (!$autoloader) {
+    fwrite(STDERR, "Error: Could not find autoloader. Run 'composer install' first.\n");
+    exit(1);
+}
+
+require $autoloader;
+
+use AdosLabs\AdminPanel\Console\AssetPublisher;
+
+// Parse arguments
+$options = getopt('', ['force', 'verbose', 'help', 'root:']);
+
+if (isset($options['help'])) {
+    echo <<<HELP
+Asset Publisher - Enterprise Admin Panel
+
+Publishes static assets (CSS, JS, images, fonts) from vendor packages
+to the project's public directory.
+
+Usage:
+  php vendor/senza1dio/enterprise-admin-panel/bin/publish-assets [options]
+
+Options:
+  --force     Overwrite existing files even if unchanged
+  --verbose   Show detailed output for each file
+  --root=PATH Specify project root (auto-detected by default)
+  --help      Show this help message
+
+Examples:
+  # Publish assets (skip unchanged files)
+  php vendor/senza1dio/enterprise-admin-panel/bin/publish-assets
+
+  # Force republish all assets
+  php vendor/senza1dio/enterprise-admin-panel/bin/publish-assets --force
+
+  # Verbose output
+  php vendor/senza1dio/enterprise-admin-panel/bin/publish-assets --verbose
+
+HELP;
+    exit(0);
+}
+
+// Create publisher
+$projectRoot = $options['root'] ?? null;
+$publisher = new AssetPublisher($projectRoot);
+
+// Configure
+if (isset($options['force'])) {
+    $publisher->force(true);
+}
+
+if (isset($options['verbose'])) {
+    $publisher->verbose(true);
+}
+
+// Run
+$success = $publisher->publish();
+
+exit($success ? 0 : 1);

@@ -1,0 +1,106 @@
+# ============================================================================
+# Enterprise Lightning Framework (ELF) - Development Environment
+# ============================================================================
+# Supports both PostgreSQL and MySQL for dual-database testing
+#
+# Usage:
+#   docker-compose up -d              # Start all services
+#   docker-compose up -d postgres     # Start only PostgreSQL
+#   docker-compose up -d mysql        # Start only MySQL
+#   docker-compose down               # Stop all services
+#
+# Connect:
+#   PostgreSQL: localhost:5432 (admin/secret)
+#   MySQL:      localhost:3306 (admin/secret)
+#   Redis:      localhost:6379
+#   Mailpit:    http://localhost:8025 (Web UI)
+#              localhost:1025 (SMTP)
+# ============================================================================
+
+services:
+  # ============================================================================
+  # PostgreSQL 17
+  # ============================================================================
+  postgres:
+    image: postgres:17-alpine
+    container_name: elf-postgres
+    environment:
+      POSTGRES_DB: admin_panel
+      POSTGRES_USER: admin
+      POSTGRES_PASSWORD: secret
+      PGDATA: /var/lib/postgresql/data/pgdata
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./init-postgres.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U admin -d admin_panel"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  # ============================================================================
+  # MySQL 8.0
+  # ============================================================================
+  mysql:
+    image: mysql:8.0
+    container_name: elf-mysql
+    environment:
+      MYSQL_DATABASE: admin_panel
+      MYSQL_USER: admin
+      MYSQL_PASSWORD: secret
+      MYSQL_ROOT_PASSWORD: rootsecret
+    ports:
+      - "3306:3306"
+    volumes:
+      - mysql_data:/var/lib/mysql
+      - ./init-mysql.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    command: --default-authentication-plugin=mysql_native_password
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "admin", "-psecret"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  # ============================================================================
+  # Redis 7 (for sessions, cache, rate limiting)
+  # ============================================================================
+  redis:
+    image: redis:7-alpine
+    container_name: elf-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    command: redis-server --appendonly yes
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  # ============================================================================
+  # Mailpit (modern email testing, native ARM + x86 support)
+  # ============================================================================
+  mailpit:
+    image: axllent/mailpit:latest
+    container_name: elf-mailpit
+    ports:
+      - "1025:1025"  # SMTP
+      - "8025:8025"  # Web UI
+    environment:
+      MP_SMTP_AUTH_ACCEPT_ANY: 1
+      MP_SMTP_AUTH_ALLOW_INSECURE: 1
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
+    driver: local
+  mysql_data:
+    driver: local
+  redis_data:
+    driver: local

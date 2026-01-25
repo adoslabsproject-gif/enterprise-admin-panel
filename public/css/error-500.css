@@ -1,0 +1,377 @@
+/* ================================================================
+ * Enterprise Admin Panel - 500 Internal Server Error Styles
+ * BEM naming convention with .eap- prefix
+ * "System Meltdown" concept - Nuclear reactor going critical
+ * ================================================================ */
+
+/* ================================================================
+ * Base Reset (scoped)
+ * ================================================================ */
+.eap-error-500 *,
+.eap-error-500 *::before,
+.eap-error-500 *::after {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+/* ================================================================
+ * Page Layout
+ * ================================================================ */
+.eap-error-500 {
+    background: #0d0d0d;
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    overflow: hidden;
+    position: relative;
+}
+
+/* ================================================================
+ * Warning Stripes
+ * ================================================================ */
+.eap-error-500__warning-stripes {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 8px;
+    background: repeating-linear-gradient(
+        90deg,
+        #ff9500 0px,
+        #ff9500 20px,
+        #1a1a1a 20px,
+        #1a1a1a 40px
+    );
+    animation: eap-error-500-stripe-move 1s linear infinite;
+}
+
+.eap-error-500__warning-stripes--bottom {
+    top: auto;
+    bottom: 0;
+    animation-direction: reverse;
+}
+
+@keyframes eap-error-500-stripe-move {
+    0% { background-position: 0 0; }
+    100% { background-position: 40px 0; }
+}
+
+/* ================================================================
+ * Red Alert Overlay
+ * ================================================================ */
+.eap-error-500__red-alert {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: radial-gradient(circle at center, transparent 0%, rgba(255, 59, 48, 0.1) 100%);
+    animation: eap-error-500-alert-pulse 2s ease-in-out infinite;
+    pointer-events: none;
+}
+
+@keyframes eap-error-500-alert-pulse {
+    0%, 100% { opacity: 0.3; }
+    50% { opacity: 0.8; }
+}
+
+/* ================================================================
+ * Smoke Particles
+ * ================================================================ */
+.eap-error-500__smoke-container {
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    pointer-events: none;
+    overflow: hidden;
+}
+
+.eap-error-500__smoke {
+    position: absolute;
+    bottom: -50px;
+    width: 100px;
+    height: 100px;
+    background: radial-gradient(circle, rgba(100, 100, 100, 0.3) 0%, transparent 70%);
+    border-radius: 50%;
+    animation: eap-error-500-rise 8s ease-out infinite;
+}
+
+.eap-error-500__smoke:nth-child(1) { left: 10%; animation-delay: 0s; }
+.eap-error-500__smoke:nth-child(2) { left: 30%; animation-delay: 2s; }
+.eap-error-500__smoke:nth-child(3) { left: 50%; animation-delay: 1s; }
+.eap-error-500__smoke:nth-child(4) { left: 70%; animation-delay: 3s; }
+.eap-error-500__smoke:nth-child(5) { left: 90%; animation-delay: 1.5s; }
+
+@keyframes eap-error-500-rise {
+    0% {
+        transform: translateY(0) scale(1);
+        opacity: 0.5;
+    }
+    100% {
+        transform: translateY(-100vh) scale(3);
+        opacity: 0;
+    }
+}
+
+/* ================================================================
+ * Container
+ * ================================================================ */
+.eap-error-500__container {
+    position: relative;
+    z-index: 10;
+    text-align: center;
+    padding: 40px;
+    max-width: 600px;
+}
+
+/* ================================================================
+ * Reactor Core
+ * ================================================================ */
+.eap-error-500__reactor-core {
+    width: 180px;
+    height: 180px;
+    margin: 0 auto 30px;
+    position: relative;
+}
+
+.eap-error-500__core-outer {
+    width: 180px;
+    height: 180px;
+    border: 4px solid #ff9500;
+    border-radius: 50%;
+    position: relative;
+    animation: eap-error-500-core-rotate 10s linear infinite;
+    box-shadow:
+        0 0 20px rgba(255, 149, 0, 0.5),
+        inset 0 0 20px rgba(255, 149, 0, 0.2);
+}
+
+@keyframes eap-error-500-core-rotate {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}
+
+.eap-error-500__core-outer::before,
+.eap-error-500__core-outer::after {
+    content: '';
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    border-radius: 50%;
+}
+
+.eap-error-500__core-outer::before {
+    width: 130px;
+    height: 130px;
+    border: 3px dashed rgba(255, 149, 0, 0.5);
+    animation: eap-error-500-core-rotate 5s linear infinite reverse;
+}
+
+.eap-error-500__core-outer::after {
+    width: 80px;
+    height: 80px;
+    border: 2px solid rgba(255, 59, 48, 0.8);
+    animation: eap-error-500-core-pulse 1s ease-in-out infinite;
+}
+
+@keyframes eap-error-500-core-pulse {
+    0%, 100% { transform: translate(-50%, -50%) scale(1); opacity: 1; }
+    50% { transform: translate(-50%, -50%) scale(1.1); opacity: 0.8; }
+}
+
+.eap-error-500__core-center {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    width: 50px;
+    height: 50px;
+    background: radial-gradient(circle, #ff3b30 0%, #ff9500 50%, transparent 70%);
+    border-radius: 50%;
+    animation: eap-error-500-meltdown 0.5s ease-in-out infinite;
+    box-shadow: 0 0 40px #ff3b30, 0 0 80px #ff9500;
+}
+
+@keyframes eap-error-500-meltdown {
+    0%, 100% { transform: translate(-50%, -50%) scale(1); }
+    50% { transform: translate(-50%, -50%) scale(1.2); }
+}
+
+/* ================================================================
+ * Warning Lights
+ * ================================================================ */
+.eap-error-500__warning-lights {
+    display: flex;
+    justify-content: center;
+    gap: 15px;
+    margin-bottom: 25px;
+}
+
+.eap-error-500__warning-light {
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    animation: eap-error-500-blink 0.5s ease-in-out infinite alternate;
+}
+
+.eap-error-500__warning-light:nth-child(1) { background: #ff3b30; animation-delay: 0s; }
+.eap-error-500__warning-light:nth-child(2) { background: #ff9500; animation-delay: 0.1s; }
+.eap-error-500__warning-light:nth-child(3) { background: #ff3b30; animation-delay: 0.2s; }
+.eap-error-500__warning-light:nth-child(4) { background: #ff9500; animation-delay: 0.3s; }
+.eap-error-500__warning-light:nth-child(5) { background: #ff3b30; animation-delay: 0.4s; }
+
+@keyframes eap-error-500-blink {
+    0% { opacity: 0.3; box-shadow: none; }
+    100% { opacity: 1; box-shadow: 0 0 10px currentColor; }
+}
+
+/* ================================================================
+ * Error Content
+ * ================================================================ */
+.eap-error-500__code {
+    font-size: 80px;
+    font-weight: 800;
+    color: #ff3b30;
+    text-shadow: 0 0 30px rgba(255, 59, 48, 0.5);
+    animation: eap-error-500-text-glitch 3s infinite;
+}
+
+@keyframes eap-error-500-text-glitch {
+    0%, 90%, 100% { opacity: 1; }
+    92%, 94%, 96%, 98% { opacity: 0.8; transform: translateX(-2px); }
+    93%, 95%, 97%, 99% { opacity: 0.8; transform: translateX(2px); }
+}
+
+.eap-error-500__title {
+    color: #ff9500;
+    font-size: 24px;
+    font-weight: 600;
+    margin: 15px 0;
+    text-transform: uppercase;
+    letter-spacing: 4px;
+}
+
+.eap-error-500__message {
+    color: #888;
+    font-size: 15px;
+    line-height: 1.7;
+    margin-bottom: 25px;
+}
+
+.eap-error-500__error-id {
+    display: inline-block;
+    background: rgba(255, 149, 0, 0.1);
+    border: 1px solid rgba(255, 149, 0, 0.3);
+    border-radius: 6px;
+    padding: 10px 20px;
+    margin-bottom: 25px;
+    font-family: 'Courier New', monospace;
+    font-size: 12px;
+    color: #ff9500;
+}
+
+.eap-error-500__error-id-label {
+    color: #fff;
+    font-weight: 600;
+}
+
+/* ================================================================
+ * Back Button
+ * ================================================================ */
+.eap-error-500__back-btn {
+    display: inline-block;
+    padding: 14px 35px;
+    background: linear-gradient(135deg, #ff9500 0%, #ff3b30 100%);
+    color: #fff;
+    text-decoration: none;
+    border-radius: 8px;
+    font-weight: 600;
+    font-size: 14px;
+    transition: all 0.3s ease;
+    box-shadow: 0 4px 15px rgba(255, 149, 0, 0.3);
+}
+
+.eap-error-500__back-btn:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 25px rgba(255, 149, 0, 0.4);
+}
+
+/* ================================================================
+ * Status Text
+ * ================================================================ */
+.eap-error-500__status-text {
+    margin-top: 30px;
+    color: #555;
+    font-size: 12px;
+    font-family: 'Courier New', monospace;
+}
+
+.eap-error-500__status-label {
+    color: #ff9500;
+}
+
+/* ================================================================
+ * Debug Details (Development Mode)
+ * ================================================================ */
+.eap-error-500__debug-details {
+    margin-top: 30px;
+    text-align: left;
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 8px;
+    padding: 20px;
+    max-height: 300px;
+    overflow: auto;
+}
+
+.eap-error-500__debug-summary {
+    color: #ff9500;
+    cursor: pointer;
+    font-size: 13px;
+    margin-bottom: 15px;
+}
+
+.eap-error-500__debug-label {
+    color: #fff;
+    font-weight: 600;
+    display: block;
+    margin-top: 10px;
+    margin-bottom: 5px;
+}
+
+.eap-error-500__debug-content {
+    color: #888;
+    font-size: 11px;
+    white-space: pre-wrap;
+    word-break: break-all;
+    font-family: 'Courier New', monospace;
+}
+
+/* ================================================================
+ * Responsive
+ * ================================================================ */
+@media (max-width: 480px) {
+    .eap-error-500__container {
+        padding: 20px;
+    }
+
+    .eap-error-500__code {
+        font-size: 56px;
+    }
+
+    .eap-error-500__reactor-core {
+        width: 140px;
+        height: 140px;
+    }
+
+    .eap-error-500__core-outer {
+        width: 140px;
+        height: 140px;
+    }
+}

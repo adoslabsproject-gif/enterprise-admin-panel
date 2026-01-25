@@ -1,0 +1,273 @@
+/* ================================================================
+ * Enterprise Admin Panel - Recovery Form Styles
+ * BEM naming convention with .eap- prefix
+ * ================================================================ */
+
+:root {
+    --eap-recovery-color-primary: #dc3545;
+    --eap-recovery-color-primary-hover: #c82333;
+    --eap-recovery-color-danger: #dc3545;
+    --eap-recovery-color-warning: #ffc107;
+    --eap-recovery-color-bg: #f5f5f5;
+    --eap-recovery-color-card: #ffffff;
+    --eap-recovery-color-text: #333333;
+    --eap-recovery-color-text-muted: #6c757d;
+    --eap-recovery-color-border: #dee2e6;
+    --eap-recovery-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+    --eap-recovery-radius: 8px;
+}
+
+/* ================================================================
+ * Base Reset (scoped)
+ * ================================================================ */
+.eap-recovery *,
+.eap-recovery *::before,
+.eap-recovery *::after {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+}
+
+/* ================================================================
+ * Page Layout
+ * ================================================================ */
+.eap-recovery {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+    background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+}
+
+.eap-recovery__container {
+    width: 100%;
+    max-width: 420px;
+}
+
+/* ================================================================
+ * Warning Banner
+ * ================================================================ */
+.eap-recovery__warning {
+    background: var(--eap-recovery-color-warning);
+    color: #856404;
+    padding: 16px;
+    border-radius: var(--eap-recovery-radius);
+    margin-bottom: 20px;
+    text-align: center;
+}
+
+.eap-recovery__warning-icon {
+    font-size: 24px;
+    margin-bottom: 8px;
+    display: block;
+}
+
+.eap-recovery__warning-text {
+    font-size: 14px;
+    font-weight: 500;
+}
+
+/* ================================================================
+ * Card
+ * ================================================================ */
+.eap-recovery__card {
+    background: var(--eap-recovery-color-card);
+    border-radius: var(--eap-recovery-radius);
+    box-shadow: var(--eap-recovery-shadow);
+    padding: 40px;
+    border-top: 4px solid var(--eap-recovery-color-danger);
+}
+
+/* ================================================================
+ * Header
+ * ================================================================ */
+.eap-recovery__header {
+    text-align: center;
+    margin-bottom: 32px;
+}
+
+.eap-recovery__logo {
+    width: 64px;
+    height: 64px;
+    margin: 0 auto 16px;
+    background: var(--eap-recovery-color-danger);
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.eap-recovery__logo-icon {
+    font-size: 28px;
+}
+
+.eap-recovery__title {
+    font-size: 24px;
+    font-weight: 600;
+    color: var(--eap-recovery-color-text);
+    margin-bottom: 8px;
+}
+
+.eap-recovery__subtitle {
+    font-size: 14px;
+    color: var(--eap-recovery-color-text-muted);
+    line-height: 1.5;
+}
+
+/* ================================================================
+ * Error Message
+ * ================================================================ */
+.eap-recovery__error {
+    background: #f8d7da;
+    border: 1px solid #f5c6cb;
+    color: #721c24;
+    padding: 12px 16px;
+    border-radius: var(--eap-recovery-radius);
+    margin-bottom: 24px;
+    font-size: 14px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+/* ================================================================
+ * Form
+ * ================================================================ */
+.eap-recovery__form {
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+}
+
+.eap-recovery__field {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.eap-recovery__label {
+    font-size: 14px;
+    font-weight: 500;
+    color: var(--eap-recovery-color-text);
+}
+
+.eap-recovery__input {
+    width: 100%;
+    padding: 14px 16px;
+    border: 1px solid var(--eap-recovery-color-border);
+    border-radius: var(--eap-recovery-radius);
+    font-size: 16px;
+    transition: border-color 0.2s, box-shadow 0.2s;
+}
+
+.eap-recovery__input:focus {
+    outline: none;
+    border-color: var(--eap-recovery-color-danger);
+    box-shadow: 0 0 0 3px rgba(220, 53, 69, 0.1);
+}
+
+.eap-recovery__input--token {
+    font-family: 'Courier New', monospace;
+    letter-spacing: 2px;
+    text-align: center;
+}
+
+.eap-recovery__hint {
+    font-size: 12px;
+    color: var(--eap-recovery-color-text-muted);
+    text-align: center;
+}
+
+/* ================================================================
+ * Submit Button
+ * ================================================================ */
+.eap-recovery__submit {
+    width: 100%;
+    padding: 14px 24px;
+    background: var(--eap-recovery-color-danger);
+    color: white;
+    border: none;
+    border-radius: var(--eap-recovery-radius);
+    font-size: 16px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background 0.2s;
+}
+
+.eap-recovery__submit:hover {
+    background: var(--eap-recovery-color-primary-hover);
+}
+
+.eap-recovery__submit:disabled {
+    background: #adb5bd;
+    cursor: not-allowed;
+}
+
+/* ================================================================
+ * Footer
+ * ================================================================ */
+.eap-recovery__footer {
+    margin-top: 24px;
+    text-align: center;
+}
+
+.eap-recovery__link {
+    color: var(--eap-recovery-color-text-muted);
+    font-size: 14px;
+    text-decoration: none;
+    transition: color 0.2s;
+}
+
+.eap-recovery__link:hover {
+    color: var(--eap-recovery-color-text);
+}
+
+/* ================================================================
+ * Info Section
+ * ================================================================ */
+.eap-recovery__info {
+    margin-top: 32px;
+    padding-top: 24px;
+    border-top: 1px solid var(--eap-recovery-color-border);
+}
+
+.eap-recovery__info-title {
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--eap-recovery-color-text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    margin-bottom: 12px;
+}
+
+.eap-recovery__info-list {
+    list-style: none;
+    font-size: 13px;
+    color: var(--eap-recovery-color-text-muted);
+    line-height: 1.8;
+}
+
+.eap-recovery__info-item {
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+}
+
+.eap-recovery__info-icon {
+    flex-shrink: 0;
+}
+
+/* ================================================================
+ * Responsive
+ * ================================================================ */
+@media (max-width: 480px) {
+    .eap-recovery__card {
+        padding: 24px;
+    }
+
+    .eap-recovery__title {
+        font-size: 20px;
+    }
+}

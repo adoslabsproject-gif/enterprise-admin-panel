@@ -1,0 +1,140 @@
+/* ================================================================
+ * Enterprise Admin Panel - Logger Database Page
+ * BEM naming convention with .eap- prefix
+ * ================================================================ */
+
+/* ================================================================
+ * Filters
+ * ================================================================ */
+.eap-filters__row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 1rem;
+    align-items: flex-end;
+}
+
+.eap-form__group--inline {
+    margin-bottom: 0;
+}
+
+.eap-form__group--inline .eap-form__label {
+    font-size: 0.75rem;
+    margin-bottom: 0.25rem;
+}
+
+/* ================================================================
+ * Logs Table
+ * ================================================================ */
+.eap-table--logs {
+    font-size: 0.875rem;
+}
+
+.eap-log-row--danger {
+    background-color: rgba(239, 68, 68, 0.05);
+}
+
+.eap-log-row--warning {
+    background-color: rgba(245, 158, 11, 0.05);
+}
+
+.eap-log-message {
+    max-width: 400px;
+}
+
+.eap-log-message__text {
+    display: block;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+/* ================================================================
+ * Monospace Text
+ * ================================================================ */
+.eap-text-mono {
+    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+}
+
+/* ================================================================
+ * Pagination
+ * ================================================================ */
+.eap-pagination {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.eap-pagination--bottom {
+    margin-top: 1rem;
+    justify-content: center;
+}
+
+.eap-pagination__info {
+    padding: 0 1rem;
+    color: var(--eap-text-muted, #6b7280);
+}
+
+/* ================================================================
+ * Log Detail Modal
+ * ================================================================ */
+.eap-log-detail__meta {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 1rem;
+    margin-bottom: 1.5rem;
+    padding: 1rem;
+    background: var(--eap-bg-secondary, #f9fafb);
+    border-radius: 0.5rem;
+}
+
+.eap-log-detail__item {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+}
+
+.eap-log-detail h4 {
+    margin: 1.5rem 0 0.5rem;
+    font-size: 0.875rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--eap-text-muted, #6b7280);
+}
+
+.eap-log-detail__message {
+    padding: 1rem;
+    background: var(--eap-bg-secondary, #f9fafb);
+    border-radius: 0.5rem;
+    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+    white-space: pre-wrap;
+    word-break: break-word;
+}
+
+/* ================================================================
+ * Pre-formatted Text
+ * ================================================================ */
+.eap-pre {
+    padding: 1rem;
+    background: var(--eap-bg-secondary, #f9fafb);
+    border-radius: 0.5rem;
+    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+    font-size: 0.8125rem;
+    overflow-x: auto;
+    white-space: pre-wrap;
+    word-break: break-word;
+}
+
+/* ================================================================
+ * Responsive
+ * ================================================================ */
+@media (max-width: 768px) {
+    .eap-filters__row {
+        flex-direction: column;
+        align-items: stretch;
+    }
+
+    .eap-log-detail__meta {
+        grid-template-columns: 1fr;
+    }
+}

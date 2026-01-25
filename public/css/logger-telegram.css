@@ -1,0 +1,127 @@
+/* ================================================================
+ * Enterprise Admin Panel - Logger Telegram Page
+ * BEM naming convention with .eap- prefix
+ * ================================================================ */
+
+/* ================================================================
+ * Checkbox Group
+ * ================================================================ */
+.eap-form__checkbox-group {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    margin-top: 0.5rem;
+}
+
+.eap-channel-checkboxes {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+    gap: 0.5rem;
+    padding: 1rem;
+    background: var(--eap-bg-secondary, #f9fafb);
+    border-radius: 0.5rem;
+    margin-top: 0.75rem;
+}
+
+/* ================================================================
+ * Checkbox Large Variant
+ * ================================================================ */
+.eap-form__checkbox--lg {
+    padding: 1rem;
+    background: var(--eap-bg-secondary, #f9fafb);
+    border-radius: 0.5rem;
+}
+
+.eap-form__checkbox--lg span {
+    font-size: 1rem;
+    font-weight: 500;
+}
+
+/* ================================================================
+ * Form Actions
+ * ================================================================ */
+.eap-form__actions {
+    display: flex;
+    gap: 1rem;
+    margin-top: 2rem;
+    padding-top: 1.5rem;
+    border-top: 1px solid var(--eap-border-color, #e5e7eb);
+}
+
+/* ================================================================
+ * Small Input Variant
+ * ================================================================ */
+.eap-form__input--sm {
+    max-width: 120px;
+}
+
+/* ================================================================
+ * Numbered List
+ * ================================================================ */
+.eap-list--numbered {
+    list-style: none;
+    counter-reset: step;
+}
+
+.eap-list--numbered > li {
+    counter-increment: step;
+    position: relative;
+    padding-left: 3rem;
+    margin-bottom: 1.5rem;
+}
+
+.eap-list--numbered > li::before {
+    content: counter(step);
+    position: absolute;
+    left: 0;
+    width: 2rem;
+    height: 2rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--eap-primary, #3b82f6);
+    color: white;
+    font-weight: 600;
+    border-radius: 50%;
+    font-size: 0.875rem;
+}
+
+.eap-list--numbered > li strong {
+    display: block;
+    margin-bottom: 0.5rem;
+    color: var(--eap-text-primary, #111827);
+}
+
+.eap-list--numbered > li ul {
+    margin-top: 0.5rem;
+    padding-left: 1rem;
+}
+
+.eap-list--numbered > li ul li {
+    margin-bottom: 0.25rem;
+    color: var(--eap-text-muted, #6b7280);
+}
+
+.eap-list--numbered > li ul li code {
+    background: var(--eap-bg-secondary, #f3f4f6);
+    padding: 0.125rem 0.375rem;
+    border-radius: 0.25rem;
+    font-size: 0.8125rem;
+}
+
+/* ================================================================
+ * Responsive
+ * ================================================================ */
+@media (max-width: 640px) {
+    .eap-form__actions {
+        flex-direction: column;
+    }
+
+    .eap-form__actions .eap-btn {
+        width: 100%;
+    }
+
+    .eap-channel-checkboxes {
+        grid-template-columns: 1fr;
+    }
+}

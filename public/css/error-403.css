@@ -1,0 +1,313 @@
+/* ================================================================
+ * Enterprise Admin Panel - 403 Forbidden Error Styles
+ * BEM naming convention with .eap- prefix
+ * "Vault Door" concept - locked tight with retinal scan
+ * ================================================================ */
+
+/* ================================================================
+ * Base Reset (scoped)
+ * ================================================================ */
+.eap-error-403 *,
+.eap-error-403 *::before,
+.eap-error-403 *::after {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+/* ================================================================
+ * Page Layout
+ * ================================================================ */
+.eap-error-403 {
+    background: linear-gradient(135deg, #1a1a2e 0%, #0f0f1a 100%);
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    overflow: hidden;
+    position: relative;
+}
+
+/* ================================================================
+ * Animated Background Grid
+ * ================================================================ */
+.eap-error-403__grid-bg {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background-image:
+        linear-gradient(rgba(255, 59, 48, 0.03) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(255, 59, 48, 0.03) 1px, transparent 1px);
+    background-size: 50px 50px;
+    animation: eap-error-403-grid-move 20s linear infinite;
+}
+
+@keyframes eap-error-403-grid-move {
+    0% { transform: translate(0, 0); }
+    100% { transform: translate(50px, 50px); }
+}
+
+/* ================================================================
+ * Container
+ * ================================================================ */
+.eap-error-403__container {
+    position: relative;
+    z-index: 10;
+    text-align: center;
+    padding: 40px;
+    max-width: 500px;
+}
+
+/* ================================================================
+ * Vault Door
+ * ================================================================ */
+.eap-error-403__vault-container {
+    position: relative;
+    width: 200px;
+    height: 200px;
+    margin: 0 auto 30px;
+}
+
+.eap-error-403__vault-door {
+    width: 200px;
+    height: 200px;
+    background: linear-gradient(145deg, #3a3a4a, #2a2a3a);
+    border-radius: 50%;
+    position: relative;
+    box-shadow:
+        0 0 0 15px #1a1a2a,
+        0 0 0 20px #2a2a3a,
+        0 0 60px rgba(0, 0, 0, 0.5),
+        inset 0 0 30px rgba(0, 0, 0, 0.5);
+}
+
+.eap-error-403__vault-door::before {
+    content: '';
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: 60px;
+    height: 60px;
+    background: linear-gradient(145deg, #4a4a5a, #3a3a4a);
+    border-radius: 50%;
+    transform: translate(-50%, -50%);
+    box-shadow: inset 0 0 20px rgba(0, 0, 0, 0.5);
+}
+
+/* ================================================================
+ * Vault Handle/Wheel
+ * ================================================================ */
+.eap-error-403__vault-handle {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: 120px;
+    height: 120px;
+    transform: translate(-50%, -50%);
+    animation: eap-error-403-shake 0.5s ease-in-out infinite;
+}
+
+@keyframes eap-error-403-shake {
+    0%, 100% { transform: translate(-50%, -50%) rotate(0deg); }
+    25% { transform: translate(-50%, -50%) rotate(3deg); }
+    75% { transform: translate(-50%, -50%) rotate(-3deg); }
+}
+
+.eap-error-403__handle-spoke {
+    position: absolute;
+    width: 8px;
+    height: 50px;
+    background: linear-gradient(to bottom, #5a5a6a, #4a4a5a);
+    left: 50%;
+    transform-origin: center bottom;
+    border-radius: 4px;
+    box-shadow: 0 0 5px rgba(0, 0, 0, 0.3);
+}
+
+.eap-error-403__handle-spoke:nth-child(1) { transform: translateX(-50%) rotate(0deg); }
+.eap-error-403__handle-spoke:nth-child(2) { transform: translateX(-50%) rotate(45deg); }
+.eap-error-403__handle-spoke:nth-child(3) { transform: translateX(-50%) rotate(90deg); }
+.eap-error-403__handle-spoke:nth-child(4) { transform: translateX(-50%) rotate(135deg); }
+.eap-error-403__handle-spoke:nth-child(5) { transform: translateX(-50%) rotate(180deg); }
+.eap-error-403__handle-spoke:nth-child(6) { transform: translateX(-50%) rotate(225deg); }
+.eap-error-403__handle-spoke:nth-child(7) { transform: translateX(-50%) rotate(270deg); }
+.eap-error-403__handle-spoke:nth-child(8) { transform: translateX(-50%) rotate(315deg); }
+
+.eap-error-403__handle-center {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: 30px;
+    height: 30px;
+    background: linear-gradient(145deg, #6a6a7a, #5a5a6a);
+    border-radius: 50%;
+    transform: translate(-50%, -50%);
+    box-shadow: 0 0 10px rgba(0, 0, 0, 0.5);
+}
+
+/* ================================================================
+ * Lock Indicator
+ * ================================================================ */
+.eap-error-403__lock-indicator {
+    position: absolute;
+    bottom: -10px;
+    left: 50%;
+    transform: translateX(-50%);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    background: rgba(255, 59, 48, 0.2);
+    padding: 8px 16px;
+    border-radius: 20px;
+    border: 1px solid rgba(255, 59, 48, 0.4);
+}
+
+.eap-error-403__lock-dot {
+    width: 10px;
+    height: 10px;
+    background: #ff3b30;
+    border-radius: 50%;
+    animation: eap-error-403-pulse 1s ease-in-out infinite;
+    box-shadow: 0 0 10px #ff3b30;
+}
+
+@keyframes eap-error-403-pulse {
+    0%, 100% { opacity: 1; transform: scale(1); }
+    50% { opacity: 0.5; transform: scale(0.8); }
+}
+
+.eap-error-403__lock-text {
+    color: #ff3b30;
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 2px;
+}
+
+/* ================================================================
+ * Error Content
+ * ================================================================ */
+.eap-error-403__code {
+    font-size: 72px;
+    font-weight: 800;
+    color: #ff3b30;
+    margin-bottom: 10px;
+    text-shadow: 0 0 30px rgba(255, 59, 48, 0.3);
+}
+
+.eap-error-403__title {
+    color: #fff;
+    font-size: 24px;
+    font-weight: 600;
+    margin-bottom: 15px;
+}
+
+.eap-error-403__message {
+    color: #8a8a9a;
+    font-size: 15px;
+    line-height: 1.7;
+    margin-bottom: 30px;
+}
+
+.eap-error-403__reason-box {
+    background: rgba(255, 59, 48, 0.1);
+    border: 1px solid rgba(255, 59, 48, 0.2);
+    border-radius: 8px;
+    padding: 12px 20px;
+    margin-bottom: 30px;
+    color: #ff6b6b;
+    font-size: 13px;
+}
+
+.eap-error-403__reason-label {
+    color: #ff3b30;
+    font-weight: 600;
+}
+
+/* ================================================================
+ * Back Button
+ * ================================================================ */
+.eap-error-403__back-btn {
+    display: inline-block;
+    padding: 14px 35px;
+    background: linear-gradient(135deg, #ff3b30 0%, #ff6b6b 100%);
+    color: #fff;
+    text-decoration: none;
+    border-radius: 8px;
+    font-weight: 600;
+    font-size: 14px;
+    transition: all 0.3s ease;
+    box-shadow: 0 4px 15px rgba(255, 59, 48, 0.3);
+}
+
+.eap-error-403__back-btn:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 25px rgba(255, 59, 48, 0.4);
+}
+
+/* ================================================================
+ * Scan Line Effect
+ * ================================================================ */
+.eap-error-403__scan-line {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 3px;
+    background: linear-gradient(90deg, transparent, #ff3b30, transparent);
+    animation: eap-error-403-scan 3s ease-in-out infinite;
+    opacity: 0.5;
+}
+
+@keyframes eap-error-403-scan {
+    0%, 100% { top: 0; opacity: 0; }
+    50% { opacity: 0.5; }
+    100% { top: 100%; opacity: 0; }
+}
+
+/* ================================================================
+ * Security Badge
+ * ================================================================ */
+.eap-error-403__security-badge {
+    margin-top: 30px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    color: #5a5a6a;
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+}
+
+.eap-error-403__security-icon {
+    width: 14px;
+    height: 14px;
+    fill: currentColor;
+}
+
+/* ================================================================
+ * Responsive
+ * ================================================================ */
+@media (max-width: 480px) {
+    .eap-error-403__container {
+        padding: 20px;
+    }
+
+    .eap-error-403__code {
+        font-size: 56px;
+    }
+
+    .eap-error-403__vault-container {
+        width: 150px;
+        height: 150px;
+    }
+
+    .eap-error-403__vault-door {
+        width: 150px;
+        height: 150px;
+    }
+}

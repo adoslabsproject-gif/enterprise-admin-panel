@@ -1,0 +1,207 @@
+/* ================================================================
+ * Enterprise Admin Panel - Logger Dashboard Page
+ * BEM naming convention with .eap- prefix
+ * ================================================================ */
+
+/* ================================================================
+ * Stats Row
+ * ================================================================ */
+.eap-stats-row {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 1.5rem;
+    margin-bottom: 1.5rem;
+}
+
+@media (max-width: 1024px) {
+    .eap-stats-row {
+        grid-template-columns: repeat(2, 1fr);
+    }
+}
+
+@media (max-width: 640px) {
+    .eap-stats-row {
+        grid-template-columns: 1fr;
+    }
+}
+
+/* ================================================================
+ * Stat Card (Dashboard variant)
+ * ================================================================ */
+.eap-stat-card {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    padding: 1.5rem;
+    background: var(--eap-bg-primary, #fff);
+    border: 1px solid var(--eap-border-color, #e5e7eb);
+    border-radius: 0.5rem;
+}
+
+.eap-stat-card--danger {
+    border-color: rgba(239, 68, 68, 0.3);
+}
+
+.eap-stat-card__icon {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 48px;
+    height: 48px;
+    background: var(--eap-bg-secondary, #f9fafb);
+    border-radius: 0.5rem;
+    color: var(--eap-text-muted, #6b7280);
+}
+
+.eap-stat-card--danger .eap-stat-card__icon {
+    background: rgba(239, 68, 68, 0.1);
+    color: #ef4444;
+}
+
+.eap-stat-card__icon--info {
+    background: rgba(59, 130, 246, 0.1);
+    color: #3b82f6;
+}
+
+.eap-stat-card__icon--success {
+    background: rgba(16, 185, 129, 0.1);
+    color: #10b981;
+}
+
+.eap-stat-card__content {
+    flex: 1;
+}
+
+.eap-stat-card__value {
+    font-size: 1.5rem;
+    font-weight: 700;
+    line-height: 1;
+    color: var(--eap-text-primary, #111827);
+}
+
+.eap-stat-card__label {
+    font-size: 0.875rem;
+    color: var(--eap-text-muted, #6b7280);
+    margin-top: 0.25rem;
+}
+
+/* ================================================================
+ * Button Group
+ * ================================================================ */
+.eap-button-group {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.75rem;
+}
+
+/* ================================================================
+ * Level Badge
+ * ================================================================ */
+.eap-level-badge {
+    display: inline-flex;
+    align-items: center;
+    padding: 0.25rem 0.5rem;
+    font-size: 0.75rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.025em;
+    border-radius: 0.25rem;
+}
+
+.eap-level-badge--neutral {
+    background: var(--eap-bg-secondary, #f3f4f6);
+    color: var(--eap-text-muted, #6b7280);
+}
+
+.eap-level-badge--info {
+    background: rgba(59, 130, 246, 0.1);
+    color: #3b82f6;
+}
+
+.eap-level-badge--warning {
+    background: rgba(245, 158, 11, 0.1);
+    color: #d97706;
+}
+
+.eap-level-badge--danger {
+    background: rgba(239, 68, 68, 0.1);
+    color: #dc2626;
+}
+
+/* ================================================================
+ * Log Row Highlighting
+ * ================================================================ */
+.eap-log-row--error,
+.eap-log-row--critical,
+.eap-log-row--alert,
+.eap-log-row--emergency {
+    background-color: rgba(239, 68, 68, 0.03);
+}
+
+.eap-log-row--warning {
+    background-color: rgba(245, 158, 11, 0.03);
+}
+
+.eap-log-message {
+    max-width: 400px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+/* ================================================================
+ * Integration Status
+ * ================================================================ */
+.eap-integration-status {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+}
+
+.eap-integration-item {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    padding: 0.75rem;
+    background: var(--eap-bg-secondary, #f9fafb);
+    border-radius: 0.5rem;
+}
+
+.eap-integration-item__icon {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+}
+
+.eap-integration-item__icon--success {
+    background: rgba(16, 185, 129, 0.1);
+    color: #10b981;
+}
+
+.eap-integration-item__icon--warning {
+    background: rgba(245, 158, 11, 0.1);
+    color: #f59e0b;
+}
+
+.eap-integration-item__icon--neutral {
+    background: var(--eap-bg-tertiary, #e5e7eb);
+    color: var(--eap-text-muted, #6b7280);
+}
+
+.eap-integration-item__content {
+    display: flex;
+    flex-direction: column;
+    gap: 0.125rem;
+}
+
+.eap-integration-item__content strong {
+    font-size: 0.875rem;
+    color: var(--eap-text-primary, #111827);
+}
+
+.eap-integration-item__content span {
+    font-size: 0.8125rem;
+}

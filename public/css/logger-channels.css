@@ -1,0 +1,58 @@
+/* ================================================================
+ * Enterprise Admin Panel - Logger Channels Page
+ * BEM naming convention with .eap- prefix
+ * ================================================================ */
+
+/* ================================================================
+ * Level Card
+ * ================================================================ */
+.eap-level-card {
+    padding: 1rem;
+    border: 1px solid var(--eap-border-color, #e5e7eb);
+    border-radius: 0.5rem;
+}
+
+.eap-level-card .eap-badge {
+    margin-bottom: 0.5rem;
+    display: inline-block;
+}
+
+/* ================================================================
+ * Notifications
+ * ================================================================ */
+.eap-notification {
+    position: fixed;
+    bottom: 1rem;
+    right: 1rem;
+    padding: 1rem 1.5rem;
+    border-radius: 0.5rem;
+    background: var(--eap-bg-primary, #fff);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+    z-index: 9999;
+    animation: eap-notification-slide-in 0.3s ease;
+}
+
+.eap-notification--success {
+    border-left: 4px solid var(--eap-success, #10b981);
+}
+
+.eap-notification--error {
+    border-left: 4px solid var(--eap-danger, #ef4444);
+}
+
+.eap-notification--fade-out {
+    opacity: 0;
+    transform: translateX(100%);
+    transition: all 0.3s ease;
+}
+
+@keyframes eap-notification-slide-in {
+    from {
+        opacity: 0;
+        transform: translateX(100%);
+    }
+    to {
+        opacity: 1;
+        transform: translateX(0);
+    }
+}
