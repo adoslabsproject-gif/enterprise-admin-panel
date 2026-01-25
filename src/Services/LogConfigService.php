@@ -208,14 +208,31 @@ final class LogConfigService
         }
 
         try {
-            // Upsert channel - use PostgreSQL syntax (ON CONFLICT)
-            $sql = "INSERT INTO log_channels (channel, min_level, enabled, description, updated_at)
-                   VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP)
-                   ON CONFLICT (channel) DO UPDATE SET
-                       min_level = EXCLUDED.min_level,
-                       enabled = EXCLUDED.enabled,
-                       description = EXCLUDED.description,
-                       updated_at = CURRENT_TIMESTAMP";
+            // Upsert channel - multi-driver support
+            $driver = $this->db->getDriverName();
+
+            $sql = match ($driver) {
+                'pgsql' => "INSERT INTO log_channels (channel, min_level, enabled, description, updated_at)
+                           VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP)
+                           ON CONFLICT (channel) DO UPDATE SET
+                               min_level = EXCLUDED.min_level,
+                               enabled = EXCLUDED.enabled,
+                               description = EXCLUDED.description,
+                               updated_at = CURRENT_TIMESTAMP",
+
+                'mysql' => "INSERT INTO log_channels (channel, min_level, enabled, description, updated_at)
+                           VALUES (?, ?, ?, ?, NOW())
+                           ON DUPLICATE KEY UPDATE
+                               min_level = VALUES(min_level),
+                               enabled = VALUES(enabled),
+                               description = VALUES(description),
+                               updated_at = NOW()",
+
+                'sqlite' => "INSERT OR REPLACE INTO log_channels (channel, min_level, enabled, description, updated_at)
+                            VALUES (?, ?, ?, ?, datetime('now'))",
+
+                default => throw new \RuntimeException("Unsupported database driver: {$driver}"),
+            };
 
             $this->db->execute($sql, [
                 $channel,

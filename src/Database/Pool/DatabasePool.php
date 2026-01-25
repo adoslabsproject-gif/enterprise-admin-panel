@@ -27,6 +27,9 @@ use PDOStatement;
 use AdosLabs\AdminPanel\Database\Pool\Exceptions\CircuitBreakerOpenException;
 use AdosLabs\AdminPanel\Database\Pool\Exceptions\PoolExhaustedException;
 use AdosLabs\AdminPanel\Database\Pool\Exceptions\QueryValidationException;
+use AdosLabs\AdminPanel\Database\Pool\Redis\RedisStateManager;
+use AdosLabs\AdminPanel\Database\Pool\Redis\DistributedCircuitBreaker;
+use AdosLabs\AdminPanel\Database\Pool\Redis\DistributedMetricsCollector;
 
 final class DatabasePool
 {
@@ -37,13 +40,34 @@ final class DatabasePool
     private array $pool = [];
 
     /**
-     * Circuit breaker instance
+     * Local circuit breaker (fallback when Redis unavailable)
      */
-    private CircuitBreaker $circuitBreaker;
+    private CircuitBreaker $localCircuitBreaker;
 
     /**
-     * Prepared statement cache
-     * @var array<string, PDOStatement>
+     * Distributed circuit breaker (uses Redis)
+     */
+    private ?DistributedCircuitBreaker $distributedCircuitBreaker = null;
+
+    /**
+     * Redis state manager
+     */
+    private ?RedisStateManager $redisState = null;
+
+    /**
+     * Distributed metrics collector
+     */
+    private ?DistributedMetricsCollector $metricsCollector = null;
+
+    /**
+     * Whether Redis is enabled
+     */
+    private bool $redisEnabled;
+
+    /**
+     * Prepared statement cache - per connection to avoid PDO cross-contamination
+     * Structure: [connection_identifier => [sql_hash => PDOStatement]]
+     * @var array<string, array<string, PDOStatement>>
      */
     private array $statementCache = [];
 
@@ -53,7 +77,7 @@ final class DatabasePool
     private int $connectionCounter = 0;
 
     /**
-     * Metrics
+     * Local metrics (used when Redis unavailable or as buffer)
      */
     private int $totalQueries = 0;
     private int $slowQueries = 0;
@@ -83,17 +107,65 @@ final class DatabasePool
     ) {
         $this->config->validate();
 
-        $this->circuitBreaker = new CircuitBreaker(
+        // Initialize local circuit breaker (always available as fallback)
+        $this->localCircuitBreaker = new CircuitBreaker(
             $this->config->getCircuitFailureThreshold(),
             $this->config->getCircuitRecoveryTime(),
             $this->config->getCircuitHalfOpenSuccesses()
         );
+
+        // Initialize Redis if enabled
+        $this->redisEnabled = $this->config->isRedisEnabled();
+
+        if ($this->redisEnabled) {
+            $this->initializeRedis();
+        }
 
         if ($this->config->shouldWarmOnInit()) {
             $this->warmPool();
         }
 
         register_shutdown_function([$this, 'shutdown']);
+    }
+
+    /**
+     * Initialize Redis components
+     */
+    private function initializeRedis(): void
+    {
+        try {
+            $this->redisState = RedisStateManager::fromArray($this->config->getRedisConfig());
+
+            if ($this->redisState->connect()) {
+                // Create distributed circuit breaker
+                $this->distributedCircuitBreaker = new DistributedCircuitBreaker(
+                    $this->redisState,
+                    $this->config->getDatabase(), // Use database name as circuit ID
+                    $this->config->getCircuitFailureThreshold(),
+                    $this->config->getCircuitRecoveryTime(),
+                    $this->config->getCircuitHalfOpenSuccesses()
+                );
+
+                // Create distributed metrics collector
+                $this->metricsCollector = new DistributedMetricsCollector(
+                    $this->redisState,
+                    $this->config->getDatabase()
+                );
+
+                // Register as active worker
+                $this->metricsCollector->heartbeat();
+
+                error_log('[DB Pool] Redis enabled - using distributed state');
+            } else {
+                error_log('[DB Pool] Redis connection failed - using local state');
+                $this->redisState = null;
+            }
+        } catch (\Throwable $e) {
+            error_log('[DB Pool] Redis initialization failed: ' . $e->getMessage());
+            $this->redisState = null;
+            $this->distributedCircuitBreaker = null;
+            $this->metricsCollector = null;
+        }
     }
 
     /**
@@ -123,6 +195,14 @@ final class DatabasePool
     }
 
     /**
+     * Get the active circuit breaker (distributed or local)
+     */
+    private function getCircuitBreaker(): CircuitBreaker|DistributedCircuitBreaker
+    {
+        return $this->distributedCircuitBreaker ?? $this->localCircuitBreaker;
+    }
+
+    /**
      * Acquire a connection from the pool
      *
      * LIFO order for CPU cache locality.
@@ -133,12 +213,14 @@ final class DatabasePool
      */
     public function acquire(): PooledConnection
     {
+        $circuitBreaker = $this->getCircuitBreaker();
+
         // Check circuit breaker
-        if (!$this->circuitBreaker->allowRequest()) {
+        if (!$circuitBreaker->allowRequest()) {
             throw new CircuitBreakerOpenException(
                 'default',
-                $this->circuitBreaker->getFailureCount(),
-                $this->circuitBreaker->getTimeUntilRecovery()
+                $circuitBreaker->getFailureCount(),
+                $circuitBreaker->getTimeUntilRecovery()
             );
         }
 
@@ -160,7 +242,8 @@ final class DatabasePool
 
             $conn->acquire();
             $this->poolHits++;
-            $this->circuitBreaker->recordSuccess();
+            $this->metricsCollector?->recordPoolHit();
+            $circuitBreaker->recordSuccess();
             return $conn;
         }
 
@@ -170,11 +253,13 @@ final class DatabasePool
                 $conn = $this->createConnection();
                 $conn->acquire();
                 $this->poolMisses++;
-                $this->circuitBreaker->recordSuccess();
+                $this->metricsCollector?->recordPoolMiss();
+                $circuitBreaker->recordSuccess();
                 return $conn;
             } catch (PDOException $e) {
-                $this->circuitBreaker->recordFailure();
+                $circuitBreaker->recordFailure();
                 $this->connectionsFailed++;
+                $this->metricsCollector?->recordConnectionFailed();
                 throw $this->retryConnection($e);
             }
         }
@@ -215,7 +300,7 @@ final class DatabasePool
         $connection = $this->acquire();
 
         try {
-            $stmt = $this->prepareStatement($connection->getPdo(), $sql);
+            $stmt = $this->prepareStatement($connection->getPdo(), $sql, $connection->getIdentifier());
             $this->bindParameters($stmt, $params);
             $stmt->execute();
             $result = $stmt->fetchAll();
@@ -226,7 +311,8 @@ final class DatabasePool
             return $result;
         } catch (PDOException $e) {
             $this->failedQueries++;
-            $this->circuitBreaker->recordFailure();
+            $this->getCircuitBreaker()->recordFailure();
+            $this->metricsCollector?->recordQuery(0, false, true);
             throw $e;
         } finally {
             $this->release($connection);
@@ -251,7 +337,7 @@ final class DatabasePool
         $connection = $this->acquire();
 
         try {
-            $stmt = $this->prepareStatement($connection->getPdo(), $sql);
+            $stmt = $this->prepareStatement($connection->getPdo(), $sql, $connection->getIdentifier());
             $this->bindParameters($stmt, $params);
             $stmt->execute();
             $result = $stmt->rowCount();
@@ -262,7 +348,8 @@ final class DatabasePool
             return $result;
         } catch (PDOException $e) {
             $this->failedQueries++;
-            $this->circuitBreaker->recordFailure();
+            $this->getCircuitBreaker()->recordFailure();
+            $this->metricsCollector?->recordQuery(0, false, true);
             throw $e;
         } finally {
             $this->release($connection);
@@ -298,6 +385,7 @@ final class DatabasePool
         $connection->getPdo()->rollBack();
         $connection->markTransactionEnded();
         $this->transactionRollbacks++;
+        $this->metricsCollector?->recordRollback();
         $this->release($connection);
     }
 
@@ -311,6 +399,7 @@ final class DatabasePool
         $size = strlen($sql);
         if ($size > $this->config->getMaxQuerySize()) {
             $this->dosBlockedQueries++;
+            $this->metricsCollector?->recordDosBlocked();
             throw QueryValidationException::querySizeExceeded(
                 $size,
                 $this->config->getMaxQuerySize()
@@ -320,6 +409,7 @@ final class DatabasePool
         $count = count($params);
         if ($count > $this->config->getMaxParameters()) {
             $this->dosBlockedQueries++;
+            $this->metricsCollector?->recordDosBlocked();
             throw QueryValidationException::parameterCountExceeded(
                 $count,
                 $this->config->getMaxParameters()
@@ -363,6 +453,7 @@ final class DatabasePool
 
         $this->pool[] = $pooled;
         $this->connectionsCreated++;
+        $this->metricsCollector?->recordConnectionCreated();
 
         // Log slow connection creation
         $duration = microtime(true) - $startTime;
@@ -451,8 +542,10 @@ final class DatabasePool
 
         if ($result) {
             $this->validationsPassed++;
+            $this->metricsCollector?->recordValidationPassed();
         } else {
             $this->validationsFailed++;
+            $this->metricsCollector?->recordValidationFailed();
         }
 
         return $result;
@@ -463,6 +556,10 @@ final class DatabasePool
      */
     private function removeConnection(int $index): void
     {
+        // Clear statement cache for this connection to prevent memory leak
+        if (isset($this->pool[$index])) {
+            $this->clearStatementCacheForConnection($this->pool[$index]->getIdentifier());
+        }
         array_splice($this->pool, $index, 1);
     }
 
@@ -550,26 +647,50 @@ final class DatabasePool
     }
 
     /**
-     * Prepare statement with caching
+     * Prepare statement with per-connection caching
+     *
+     * PDOStatement objects are bound to their parent PDO connection.
+     * Reusing a statement from a different connection causes errors.
+     * This cache is keyed by connection identifier + SQL hash.
+     *
+     * @param PDO $pdo The PDO connection
+     * @param string $sql The SQL query
+     * @param string $connectionId The connection identifier
+     * @return PDOStatement
      */
-    private function prepareStatement(PDO $pdo, string $sql): PDOStatement
+    private function prepareStatement(PDO $pdo, string $sql, string $connectionId = 'default'): PDOStatement
     {
-        $cacheKey = md5($sql);
+        $sqlHash = md5($sql);
 
-        if (isset($this->statementCache[$cacheKey])) {
-            return $this->statementCache[$cacheKey];
+        // Check per-connection cache
+        if (isset($this->statementCache[$connectionId][$sqlHash])) {
+            return $this->statementCache[$connectionId][$sqlHash];
         }
 
         $stmt = $pdo->prepare($sql);
 
-        // LRU eviction if cache full
-        if (count($this->statementCache) >= $this->config->getStatementCacheSize()) {
-            array_shift($this->statementCache);
+        // Initialize connection cache if needed
+        if (!isset($this->statementCache[$connectionId])) {
+            $this->statementCache[$connectionId] = [];
         }
 
-        $this->statementCache[$cacheKey] = $stmt;
+        // LRU eviction if cache full for this connection
+        $maxPerConnection = (int) ceil($this->config->getStatementCacheSize() / max(1, count($this->pool)));
+        if (count($this->statementCache[$connectionId]) >= $maxPerConnection) {
+            array_shift($this->statementCache[$connectionId]);
+        }
+
+        $this->statementCache[$connectionId][$sqlHash] = $stmt;
 
         return $stmt;
+    }
+
+    /**
+     * Clear statement cache for a specific connection (e.g., when connection is removed)
+     */
+    private function clearStatementCacheForConnection(string $connectionId): void
+    {
+        unset($this->statementCache[$connectionId]);
     }
 
     /**
@@ -605,10 +726,14 @@ final class DatabasePool
 
         $connection->recordQuery($duration);
 
-        if ($duration > $this->config->getSlowQueryThreshold()) {
+        $isSlow = $duration > $this->config->getSlowQueryThreshold();
+        if ($isSlow) {
             $this->slowQueries++;
             error_log(sprintf('[DB Pool] Slow query: %.3fs', $duration));
         }
+
+        // Record to distributed metrics
+        $this->metricsCollector?->recordQuery($duration * 1000, $isSlow, false);
     }
 
     /**
@@ -656,6 +781,33 @@ final class DatabasePool
             }
         }
 
+        // Update pool gauges in distributed metrics
+        $this->metricsCollector?->updatePoolGauges(count($this->pool), $idle, $inUse);
+
+        // Get distributed metrics if available
+        $distributedMetrics = $this->metricsCollector?->getAggregatedMetrics();
+
+        $localMetrics = [
+            'total_queries' => $this->totalQueries,
+            'slow_queries' => $this->slowQueries,
+            'failed_queries' => $this->failedQueries,
+            'pool_hits' => $this->poolHits,
+            'pool_misses' => $this->poolMisses,
+            'hit_rate' => $this->poolHits + $this->poolMisses > 0
+                ? round($this->poolHits / ($this->poolHits + $this->poolMisses) * 100, 2)
+                : 0,
+            'connections_created' => $this->connectionsCreated,
+            'connections_failed' => $this->connectionsFailed,
+            'validations_passed' => $this->validationsPassed,
+            'validations_failed' => $this->validationsFailed,
+            'transaction_rollbacks' => $this->transactionRollbacks,
+            'dos_blocked_queries' => $this->dosBlockedQueries,
+            'total_query_time_ms' => round($this->totalQueryTime * 1000, 3),
+            'avg_query_time_ms' => $this->totalQueries > 0
+                ? round(($this->totalQueryTime / $this->totalQueries) * 1000, 3)
+                : 0,
+        ];
+
         return [
             'config' => [
                 'driver' => $this->config->getDriver(),
@@ -663,6 +815,7 @@ final class DatabasePool
                 'database' => $this->config->getDatabase(),
                 'min_connections' => $this->config->getMinConnections(),
                 'max_connections' => $this->config->getMaxConnections(),
+                'redis_enabled' => $this->redisEnabled,
             ],
             'pool' => [
                 'total' => count($this->pool),
@@ -671,26 +824,15 @@ final class DatabasePool
                 'available' => $this->config->getMaxConnections() - count($this->pool),
             ],
             'metrics' => [
-                'total_queries' => $this->totalQueries,
-                'slow_queries' => $this->slowQueries,
-                'failed_queries' => $this->failedQueries,
-                'pool_hits' => $this->poolHits,
-                'pool_misses' => $this->poolMisses,
-                'hit_rate' => $this->poolHits + $this->poolMisses > 0
-                    ? round($this->poolHits / ($this->poolHits + $this->poolMisses) * 100, 2)
-                    : 0,
-                'connections_created' => $this->connectionsCreated,
-                'connections_failed' => $this->connectionsFailed,
-                'validations_passed' => $this->validationsPassed,
-                'validations_failed' => $this->validationsFailed,
-                'transaction_rollbacks' => $this->transactionRollbacks,
-                'dos_blocked_queries' => $this->dosBlockedQueries,
-                'total_query_time_ms' => round($this->totalQueryTime * 1000, 3),
-                'avg_query_time_ms' => $this->totalQueries > 0
-                    ? round(($this->totalQueryTime / $this->totalQueries) * 1000, 3)
-                    : 0,
+                'local' => $localMetrics,
+                'distributed' => $distributedMetrics,
             ],
-            'circuit_breaker' => $this->circuitBreaker->getStats(),
+            'circuit_breaker' => $this->getCircuitBreaker()->getStats(),
+            'redis' => [
+                'enabled' => $this->redisEnabled,
+                'connected' => $this->redisState?->isConnected() ?? false,
+                'worker_count' => $distributedMetrics['worker_count'] ?? 1,
+            ],
         ];
     }
 
@@ -699,7 +841,7 @@ final class DatabasePool
      */
     public function resetCircuitBreaker(): void
     {
-        $this->circuitBreaker->reset();
+        $this->getCircuitBreaker()->reset();
     }
 
     /**
@@ -719,7 +861,7 @@ final class DatabasePool
         error_log('[DB Pool] Starting graceful drain (timeout: ' . $timeout . 's)');
 
         // First, force circuit breaker open to reject new requests
-        $this->circuitBreaker->forceOpen();
+        $this->getCircuitBreaker()->forceOpen();
 
         // Wait for active connections to be released
         while ((microtime(true) - $startTime) < $timeout) {
@@ -779,6 +921,9 @@ final class DatabasePool
      */
     public function shutdown(): void
     {
+        // Flush any pending metrics
+        $this->metricsCollector?->flush();
+
         foreach ($this->pool as $conn) {
             if ($conn->isInTransaction()) {
                 try {
@@ -792,6 +937,51 @@ final class DatabasePool
 
         $this->pool = [];
         $this->statementCache = [];
+
+        // Close Redis connection
+        $this->redisState?->close();
+    }
+
+    /**
+     * Check if Redis is enabled and connected
+     */
+    public function isRedisConnected(): bool
+    {
+        return $this->redisState?->isConnected() ?? false;
+    }
+
+    /**
+     * Get Redis state manager (for advanced operations)
+     */
+    public function getRedisStateManager(): ?RedisStateManager
+    {
+        return $this->redisState;
+    }
+
+    /**
+     * Flush all distributed metrics to Redis
+     */
+    public function flushMetrics(): void
+    {
+        $this->metricsCollector?->flush();
+    }
+
+    /**
+     * Send heartbeat to register this worker as active
+     */
+    public function heartbeat(): void
+    {
+        $this->metricsCollector?->heartbeat();
+    }
+
+    /**
+     * Get the database driver name (pgsql, mysql, sqlite)
+     *
+     * @return string Driver name
+     */
+    public function getDriverName(): string
+    {
+        return $this->config->getDriver();
     }
 
     /**
@@ -799,7 +989,7 @@ final class DatabasePool
      */
     public function isHealthy(): bool
     {
-        return $this->circuitBreaker->getState() !== CircuitBreaker::STATE_OPEN;
+        return $this->getCircuitBreaker()->getState() !== CircuitBreaker::STATE_OPEN;
     }
 
     /**

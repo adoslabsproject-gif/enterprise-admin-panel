@@ -181,8 +181,56 @@ if (!in_array($method, $safeMethods, true)) {
 // EMERGENCY LOGIN - Browser access with emergency token
 // ============================================================================
 
+// GET /emergency-login shows the form (no token in URL = no log exposure)
 if ($fullPath === '/emergency-login' && $method === 'GET') {
-    $token = $_GET['token'] ?? '';
+    // Render emergency login form
+    $html = <<<HTML
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Emergency Access</title>
+    <style>
+        * { box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: #0f172a; min-height: 100vh; display: flex; align-items: center; justify-content: center; margin: 0; padding: 1rem; }
+        .card { background: white; border-radius: 12px; padding: 2rem; max-width: 400px; width: 100%; box-shadow: 0 25px 50px -12px rgba(0,0,0,0.5); }
+        .icon { font-size: 3rem; text-align: center; margin-bottom: 1rem; }
+        h1 { margin: 0 0 0.5rem; text-align: center; color: #0f172a; font-size: 1.5rem; }
+        p { color: #64748b; text-align: center; margin: 0 0 1.5rem; font-size: 0.9rem; }
+        label { display: block; font-weight: 500; color: #334155; margin-bottom: 0.5rem; }
+        input { width: 100%; padding: 0.75rem 1rem; border: 1px solid #e2e8f0; border-radius: 8px; font-size: 1rem; font-family: monospace; }
+        input:focus { outline: none; border-color: #3b82f6; box-shadow: 0 0 0 3px rgba(59,130,246,0.1); }
+        button { width: 100%; padding: 0.875rem; background: #dc2626; color: white; border: none; border-radius: 8px; font-size: 1rem; font-weight: 600; cursor: pointer; margin-top: 1rem; }
+        button:hover { background: #b91c1c; }
+        .warning { background: #fef3c7; border: 1px solid #f59e0b; border-radius: 8px; padding: 0.75rem; margin-bottom: 1rem; font-size: 0.85rem; color: #92400e; }
+    </style>
+</head>
+<body>
+    <div class="card">
+        <div class="icon">&#128274;</div>
+        <h1>Emergency Access</h1>
+        <p>Enter your emergency access token to bypass normal authentication.</p>
+        <div class="warning">
+            <strong>Warning:</strong> This token is single-use and will be invalidated after access.
+        </div>
+        <form method="POST" action="/emergency-login">
+            <label for="token">Emergency Token</label>
+            <input type="password" id="token" name="token" placeholder="Enter your emergency token" required autofocus>
+            <button type="submit">Access Dashboard</button>
+        </form>
+    </div>
+</body>
+</html>
+HTML;
+    header('Content-Type: text/html; charset=utf-8');
+    echo $html;
+    exit;
+}
+
+// POST /emergency-login verifies the token (token in body = no log exposure)
+if ($fullPath === '/emergency-login' && $method === 'POST') {
+    $token = $_POST['token'] ?? '';
 
     if (empty($token)) {
         ErrorPages::render403('/', 'Emergency token required');

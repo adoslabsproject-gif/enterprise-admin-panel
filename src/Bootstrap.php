@@ -32,6 +32,12 @@ final class Bootstrap
     private static ?string $basePath = null;
 
     /**
+     * Registered hooks to run after initialization
+     * @var callable[]
+     */
+    private static array $afterInitHooks = [];
+
+    /**
      * Initialize the framework
      *
      * @param string|null $basePath Base path of the application
@@ -54,6 +60,39 @@ final class Bootstrap
         self::registerLogDecider();
 
         self::$initialized = true;
+
+        // Run after-init hooks (allows packages to register additional services)
+        foreach (self::$afterInitHooks as $hook) {
+            try {
+                $hook();
+            } catch (\Throwable $e) {
+                error_log("[Bootstrap] After-init hook failed: " . $e->getMessage());
+            }
+        }
+    }
+
+    /**
+     * Register a hook to run after initialization
+     *
+     * If Bootstrap is already initialized, the hook runs immediately.
+     * This allows packages to register services without modifying Bootstrap.
+     *
+     * @param callable $hook Function to run (receives no parameters)
+     */
+    public static function afterInit(callable $hook): void
+    {
+        if (self::$initialized) {
+            // Already initialized - run immediately
+            try {
+                $hook();
+            } catch (\Throwable $e) {
+                error_log("[Bootstrap] After-init hook failed: " . $e->getMessage());
+            }
+            return;
+        }
+
+        // Queue for later
+        self::$afterInitHooks[] = $hook;
     }
 
     /**
@@ -229,5 +268,6 @@ final class Bootstrap
         Container::flush();
         self::$initialized = false;
         self::$basePath = null;
+        self::$afterInitHooks = [];
     }
 }

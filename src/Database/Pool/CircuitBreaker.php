@@ -197,4 +197,65 @@ final class CircuitBreaker
             'opened_at' => $this->openedAt,
         ];
     }
+
+    /**
+     * Force circuit breaker to half-open state (for testing)
+     *
+     * This allows testing the half-open → closed transition
+     * without waiting for the recovery timeout.
+     */
+    public function forceHalfOpen(): void
+    {
+        $this->state = self::STATE_HALF_OPEN;
+        $this->successCount = 0;
+        $this->openedAt = microtime(true) - $this->recoveryTime - 1; // Pretend we've waited
+    }
+
+    /**
+     * Simulate failures (for testing)
+     *
+     * @param int $count Number of failures to simulate
+     */
+    public function simulateFailures(int $count): void
+    {
+        for ($i = 0; $i < $count; $i++) {
+            $this->recordFailure();
+        }
+    }
+
+    /**
+     * Simulate successes (for testing)
+     *
+     * @param int $count Number of successes to simulate
+     */
+    public function simulateSuccesses(int $count): void
+    {
+        for ($i = 0; $i < $count; $i++) {
+            $this->recordSuccess();
+        }
+    }
+
+    /**
+     * Check if circuit breaker is open
+     */
+    public function isOpen(): bool
+    {
+        return $this->getState() === self::STATE_OPEN;
+    }
+
+    /**
+     * Check if circuit breaker is closed
+     */
+    public function isClosed(): bool
+    {
+        return $this->getState() === self::STATE_CLOSED;
+    }
+
+    /**
+     * Check if circuit breaker is half-open
+     */
+    public function isHalfOpen(): bool
+    {
+        return $this->getState() === self::STATE_HALF_OPEN;
+    }
 }

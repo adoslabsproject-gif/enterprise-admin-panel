@@ -258,11 +258,21 @@ abstract class BaseController
             return Response::error("View not found: {$view}", 500);
         }
 
-        // Render view content
-        ob_start();
-        extract($data);
-        include $viewPath;
-        $content = ob_get_clean();
+        // Render view content using closure to isolate scope and avoid extract() vulnerability
+        $content = (static function(string $_viewPath, array $_data): string {
+            // Make variables available to view without extract() which can overwrite critical vars
+            foreach ($_data as $_key => $_value) {
+                // Skip reserved variable names that could compromise security
+                if (in_array($_key, ['_viewPath', '_data', '_key', '_value', 'this', 'GLOBALS'], true)) {
+                    continue;
+                }
+                $$_key = $_value;
+            }
+
+            ob_start();
+            include $_viewPath;
+            return ob_get_clean();
+        })($viewPath, $data);
 
         // Wrap in layout if specified
         if ($layout !== null && $layout !== false) {
@@ -270,10 +280,21 @@ abstract class BaseController
 
             if (file_exists($layoutPath)) {
                 $data['content'] = $content;
-                ob_start();
-                extract($data);
-                include $layoutPath;
-                $content = ob_get_clean();
+                // Render layout using closure to isolate scope and avoid extract() vulnerability
+                $content = (static function(string $_layoutPath, array $_data): string {
+                    // Make variables available to layout without extract()
+                    foreach ($_data as $_key => $_value) {
+                        // Skip reserved variable names
+                        if (in_array($_key, ['_layoutPath', '_data', '_key', '_value', 'this', 'GLOBALS'], true)) {
+                            continue;
+                        }
+                        $$_key = $_value;
+                    }
+
+                    ob_start();
+                    include $_layoutPath;
+                    return ob_get_clean();
+                })($layoutPath, $data);
             }
         }
 

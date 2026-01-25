@@ -186,7 +186,17 @@ final class DatabaseDriver implements CacheDriverInterface
             }
         }
 
-        return unserialize($row['value']);
+        // Use JSON decoding (safe) instead of unserialize (RCE vulnerability)
+        $decoded = json_decode($row['value'], true);
+
+        // Check for JSON decode error
+        if (json_last_error() !== JSON_ERROR_NONE) {
+            // Fallback: might be old serialized data, log and return null
+            error_log("[DatabaseDriver] Invalid JSON in cache for key, possible legacy data");
+            return null;
+        }
+
+        return $decoded;
     }
 
     /**
@@ -196,7 +206,12 @@ final class DatabaseDriver implements CacheDriverInterface
     {
         $pdo = $this->getPdo();
         $prefixedKey = $this->prefixedKey($key);
-        $serialized = serialize($value);
+        // Use JSON encoding (safe) instead of serialize (RCE vulnerability with unserialize)
+        $serialized = json_encode($value, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+
+        if ($serialized === false) {
+            throw new \RuntimeException("Failed to JSON encode cache value: " . json_last_error_msg());
+        }
 
         $expiresAt = $ttl !== null ? date('Y-m-d H:i:s', time() + $ttl) : null;
 

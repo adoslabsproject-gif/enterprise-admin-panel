@@ -35,7 +35,7 @@ final class RedisDriver implements CacheDriverInterface
             'read_timeout' => 2.5,
             'retry_interval' => 100,
             'persistent' => true,
-            'serializer' => Redis::SERIALIZER_PHP,
+            'serializer' => Redis::SERIALIZER_JSON, // JSON is safe (no RCE), PHP serializer enables object injection
         ], $config);
 
         $this->prefix = $prefix;

@@ -4,6 +4,13 @@
 
 Admin panel with cryptographic dynamic URLs. No predictable `/admin` endpoints.
 
+> **Documentation**: See the [`docs/`](docs/) folder for complete guides:
+> - [Quick Start](docs/QUICK_START.md) - Get running in 5 minutes
+> - [CLI Commands](docs/CLI-COMMANDS.md) - All installation options (PostgreSQL/MySQL, etc.)
+> - [Performance](docs/PERFORMANCE.md) - OPcache, Redis, cache clearing
+> - [Complete Guide](docs/COMPLETE_GUIDE.md) - Full configuration reference
+> - [Architecture](docs/ARCHITECTURE.md) - System design and components
+
 ---
 
 ## What This Does

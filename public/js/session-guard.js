@@ -22,8 +22,20 @@
         warningShown: false,
         heartbeatTimer: null,
         checkTimer: null,
+        initialized: false,
+
+        // Bound event handlers (for cleanup)
+        boundActivityHandler: null,
+        boundVisibilityHandler: null,
 
         init: function() {
+            // Prevent double initialization (memory leak protection)
+            if (this.initialized) {
+                console.warn('[SessionGuard] Already initialized, skipping');
+                return;
+            }
+            this.initialized = true;
+
             // Get admin base path from meta tag or infer from current URL
             this.basePath = this.getBasePath();
 
@@ -37,6 +49,22 @@
 
             // Start expiry check
             this.startExpiryCheck();
+
+            // Cleanup on page unload to prevent memory leaks
+            var self = this;
+            window.addEventListener('beforeunload', function() {
+                self.destroy();
+            }, { once: true });
+
+            // Pause when tab is hidden (save resources)
+            this.boundVisibilityHandler = function() {
+                if (document.hidden) {
+                    self.pauseTimers();
+                } else {
+                    self.resumeTimers();
+                }
+            };
+            document.addEventListener('visibilitychange', this.boundVisibilityHandler);
         },
 
         getBasePath: function() {
@@ -130,10 +158,23 @@
             var self = this;
             var events = ['mousedown', 'keydown', 'scroll', 'touchstart'];
 
+            // Create a single bound handler for all events (memory efficient)
+            // Debounced to prevent excessive updates
+            var lastUpdate = 0;
+            this.boundActivityHandler = function() {
+                var now = Date.now();
+                // Debounce: update at most once per second
+                if (now - lastUpdate > 1000) {
+                    self.lastActivity = now;
+                    lastUpdate = now;
+                }
+            };
+
+            // Store events for cleanup
+            this.trackedEvents = events;
+
             events.forEach(function(event) {
-                document.addEventListener(event, function() {
-                    self.lastActivity = Date.now();
-                }, { passive: true });
+                document.addEventListener(event, self.boundActivityHandler, { passive: true });
             });
         },
 
@@ -333,6 +374,75 @@
     } else {
         SessionGuard.init();
     }
+
+        /**
+         * Pause timers (when tab is hidden)
+         */
+        pauseTimers: function() {
+            if (this.heartbeatTimer) {
+                clearInterval(this.heartbeatTimer);
+                this.heartbeatTimer = null;
+            }
+            if (this.checkTimer) {
+                clearInterval(this.checkTimer);
+                this.checkTimer = null;
+            }
+            console.log('[SessionGuard] Timers paused (tab hidden)');
+        },
+
+        /**
+         * Resume timers (when tab becomes visible)
+         */
+        resumeTimers: function() {
+            // Send immediate heartbeat to sync state
+            this.sendHeartbeat();
+
+            // Restart timers
+            var self = this;
+            if (!this.heartbeatTimer) {
+                this.heartbeatTimer = setInterval(function() {
+                    self.sendHeartbeat();
+                }, this.heartbeatInterval);
+            }
+            if (!this.checkTimer) {
+                this.startExpiryCheck();
+            }
+            console.log('[SessionGuard] Timers resumed (tab visible)');
+        },
+
+        /**
+         * Cleanup all resources (prevents memory leaks)
+         */
+        destroy: function() {
+            // Clear timers
+            if (this.heartbeatTimer) {
+                clearInterval(this.heartbeatTimer);
+                this.heartbeatTimer = null;
+            }
+            if (this.checkTimer) {
+                clearInterval(this.checkTimer);
+                this.checkTimer = null;
+            }
+
+            // Remove event listeners
+            var self = this;
+            if (this.boundActivityHandler && this.trackedEvents) {
+                this.trackedEvents.forEach(function(event) {
+                    document.removeEventListener(event, self.boundActivityHandler, { passive: true });
+                });
+            }
+
+            if (this.boundVisibilityHandler) {
+                document.removeEventListener('visibilitychange', this.boundVisibilityHandler);
+            }
+
+            // Remove warning dialog if present
+            this.hideWarning();
+
+            this.initialized = false;
+            console.log('[SessionGuard] Destroyed');
+        }
+    };
 
     // Expose globally for debugging
     window.SessionGuard = SessionGuard;

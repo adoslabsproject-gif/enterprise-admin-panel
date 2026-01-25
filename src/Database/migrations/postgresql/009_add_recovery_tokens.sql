@@ -52,25 +52,6 @@ CREATE INDEX IF NOT EXISTS idx_recovery_tokens_active ON admin_recovery_tokens(u
     WHERE used_at IS NULL AND is_revoked = FALSE;
 
 -- ============================================================================
--- Add is_master flag to admin_users if not exists
--- ============================================================================
-DO $$
-BEGIN
-    IF NOT EXISTS (
-        SELECT 1 FROM information_schema.columns
-        WHERE table_name = 'admin_users' AND column_name = 'is_master'
-    ) THEN
-        ALTER TABLE admin_users ADD COLUMN is_master BOOLEAN DEFAULT FALSE;
-
-        -- Set first admin as master by default
-        UPDATE admin_users SET is_master = TRUE
-        WHERE id = (SELECT MIN(id) FROM admin_users WHERE role = 'super_admin' OR role = 'admin');
-
-        COMMENT ON COLUMN admin_users.is_master IS 'Master admin can generate recovery tokens and has elevated privileges';
-    END IF;
-END $$;
-
--- ============================================================================
 -- Audit log for recovery token events
 -- ============================================================================
 -- Events: recovery_token_generated, recovery_token_sent, recovery_token_used,

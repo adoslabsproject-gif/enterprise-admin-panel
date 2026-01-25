@@ -187,6 +187,10 @@ if (!function_exists('should_log')) {
      * 2. Redis (cross-request)
      * 3. Database (source of truth)
      *
+     * SAFETY: When not initialized or on error, defaults to TRUE (log everything)
+     * to ensure no important log messages are lost. Better to have too many logs
+     * than to miss critical error information.
+     *
      * @param string $channel Log channel
      * @param string $level Log level
      * @return bool
@@ -201,13 +205,13 @@ if (!function_exists('should_log')) {
             return $decisions[$key];
         }
 
-        // If not initialized, allow all logs
+        // SAFETY: If not initialized, allow ALL logs (don't lose important messages)
         if (!Bootstrap::isInitialized()) {
             $decisions[$key] = true;
             return true;
         }
 
-        // Get decider from container
+        // SAFETY: If no decider available, allow ALL logs
         if (!Container::has('log.decider')) {
             $decisions[$key] = true;
             return true;
@@ -217,7 +221,7 @@ if (!function_exists('should_log')) {
             $decider = Container::get('log.decider');
             $decisions[$key] = $decider->shouldLog($channel, $level);
         } catch (\Throwable $e) {
-            // On any error, allow logging
+            // SAFETY: On any error, allow ALL logs
             $decisions[$key] = true;
         }
 

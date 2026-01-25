@@ -292,7 +292,13 @@ try {
 
 echo "Running database migrations...\n";
 
-$migrationsPath = __DIR__ . '/../src/Database/migrations/' . ($driver === 'mysql' ? 'mysql' : 'postgresql');
+// Normalize driver name for migrations folder
+$migrationsDriver = match ($driver) {
+    'mysql' => 'mysql',
+    'postgresql', 'pgsql' => 'postgresql',
+    default => 'postgresql',
+};
+$migrationsPath = __DIR__ . '/../src/Database/migrations/' . $migrationsDriver;
 $runner = new MigrationRunner($pdo, null, $migrationsPath);
 
 $result = $runner->migrate();
@@ -392,11 +398,15 @@ echo "  [OK] Admin URL generated and encrypted\n\n";
 // Mark as installed (prevents showing URL again)
 // ============================================================================
 
-$stmt = $pdo->prepare("
-    INSERT INTO admin_config (config_key, config_value, value_type, description, is_sensitive, is_editable)
-    VALUES ('installed_at', ?, 'string', 'Installation timestamp', false, false)
-    ON CONFLICT (config_key) DO NOTHING
-");
+// Multi-driver support for installed_at marker
+$installedAtSql = match ($migrationsDriver) {
+    'mysql' => "INSERT IGNORE INTO admin_config (config_key, config_value, value_type, description, is_sensitive, is_editable)
+                VALUES ('installed_at', ?, 'string', 'Installation timestamp', false, false)",
+    default => "INSERT INTO admin_config (config_key, config_value, value_type, description, is_sensitive, is_editable)
+                VALUES ('installed_at', ?, 'string', 'Installation timestamp', false, false)
+                ON CONFLICT (config_key) DO NOTHING",
+};
+$stmt = $pdo->prepare($installedAtSql);
 $stmt->execute([date('Y-m-d H:i:s')]);
 
 // ============================================================================

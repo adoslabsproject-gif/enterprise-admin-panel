@@ -69,6 +69,15 @@ final class PoolConfig
     private string $applicationName = 'enterprise-admin-panel';
     private string $timezone = 'UTC';
 
+    // Redis integration (ENABLED by default for enterprise features)
+    private bool $redisEnabled = true;
+    private string $redisHost = 'localhost';
+    private int $redisPort = 6379;
+    private ?string $redisPassword = null;
+    private int $redisDatabase = 0;
+    private string $redisPrefix = 'eap:dbpool:';
+    private float $redisTimeout = 2.5;
+
     /**
      * Create from DSN string
      */
@@ -141,6 +150,15 @@ final class PoolConfig
             'ssl_verify' => 'sslVerify',
             'application_name' => 'applicationName',
             'timezone' => 'timezone',
+            // Redis options
+            'redis_enabled' => 'redisEnabled',
+            'redis' => 'redisEnabled', // Alias
+            'redis_host' => 'redisHost',
+            'redis_port' => 'redisPort',
+            'redis_password' => 'redisPassword',
+            'redis_database' => 'redisDatabase',
+            'redis_prefix' => 'redisPrefix',
+            'redis_timeout' => 'redisTimeout',
         ];
 
         foreach ($mapping as $key => $property) {
@@ -194,12 +212,7 @@ final class PoolConfig
     public function buildDsn(): string
     {
         return match ($this->driver) {
-            'pgsql' => sprintf(
-                'pgsql:host=%s;port=%d;dbname=%s',
-                $this->host,
-                $this->port,
-                $this->database
-            ),
+            'pgsql' => $this->buildPgsqlDsn(),
             'mysql' => sprintf(
                 'mysql:host=%s;port=%d;dbname=%s;charset=%s',
                 $this->host,
@@ -210,6 +223,38 @@ final class PoolConfig
             'sqlite' => sprintf('sqlite:%s', $this->database),
             default => throw new InvalidArgumentException("Unsupported driver: {$this->driver}"),
         };
+    }
+
+    /**
+     * Build PostgreSQL DSN with SSL support
+     */
+    private function buildPgsqlDsn(): string
+    {
+        $dsn = sprintf(
+            'pgsql:host=%s;port=%d;dbname=%s',
+            $this->host,
+            $this->port,
+            $this->database
+        );
+
+        // PostgreSQL SSL is configured via DSN parameters
+        if ($this->sslEnabled) {
+            // sslmode: disable, allow, prefer, require, verify-ca, verify-full
+            $sslMode = $this->sslVerify ? 'verify-full' : 'require';
+            $dsn .= ";sslmode={$sslMode}";
+
+            if ($this->sslCa) {
+                $dsn .= ";sslrootcert={$this->sslCa}";
+            }
+            if ($this->sslCert) {
+                $dsn .= ";sslcert={$this->sslCert}";
+            }
+            if ($this->sslKey) {
+                $dsn .= ";sslkey={$this->sslKey}";
+            }
+        }
+
+        return $dsn;
     }
 
     // Fluent setters
@@ -453,5 +498,91 @@ final class PoolConfig
     public function getTimezone(): string
     {
         return $this->timezone;
+    }
+
+    // Redis getters and setters
+
+    public function isRedisEnabled(): bool
+    {
+        return $this->redisEnabled;
+    }
+
+    public function getRedisHost(): string
+    {
+        return $this->redisHost;
+    }
+
+    public function getRedisPort(): int
+    {
+        return $this->redisPort;
+    }
+
+    public function getRedisPassword(): ?string
+    {
+        return $this->redisPassword;
+    }
+
+    public function getRedisDatabase(): int
+    {
+        return $this->redisDatabase;
+    }
+
+    public function getRedisPrefix(): string
+    {
+        return $this->redisPrefix;
+    }
+
+    public function getRedisTimeout(): float
+    {
+        return $this->redisTimeout;
+    }
+
+    /**
+     * Configure Redis connection
+     *
+     * @param bool $enabled Enable Redis (true by default)
+     * @param string $host Redis host
+     * @param int $port Redis port
+     * @param string|null $password Redis password
+     * @param int $database Redis database number
+     * @return self
+     */
+    public function redis(
+        bool $enabled = true,
+        string $host = 'localhost',
+        int $port = 6379,
+        ?string $password = null,
+        int $database = 0
+    ): self {
+        $this->redisEnabled = $enabled;
+        $this->redisHost = $host;
+        $this->redisPort = $port;
+        $this->redisPassword = $password;
+        $this->redisDatabase = $database;
+        return $this;
+    }
+
+    /**
+     * Disable Redis (use local-only mode)
+     */
+    public function disableRedis(): self
+    {
+        $this->redisEnabled = false;
+        return $this;
+    }
+
+    /**
+     * Get Redis configuration array for RedisStateManager
+     */
+    public function getRedisConfig(): array
+    {
+        return [
+            'host' => $this->redisHost,
+            'port' => $this->redisPort,
+            'password' => $this->redisPassword,
+            'database' => $this->redisDatabase,
+            'prefix' => $this->redisPrefix,
+            'timeout' => $this->redisTimeout,
+        ];
     }
 }
