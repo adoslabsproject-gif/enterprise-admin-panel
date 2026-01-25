@@ -24,6 +24,7 @@ namespace AdosLabs\AdminPanel\Database\Pool;
 use PDO;
 use PDOException;
 use PDOStatement;
+use Throwable;
 use AdosLabs\AdminPanel\Database\Pool\Exceptions\CircuitBreakerOpenException;
 use AdosLabs\AdminPanel\Database\Pool\Exceptions\PoolExhaustedException;
 use AdosLabs\AdminPanel\Database\Pool\Exceptions\QueryValidationException;
@@ -390,6 +391,31 @@ final class DatabasePool
     }
 
     /**
+     * Execute a callback within a transaction
+     *
+     * Automatically commits on success, rolls back on exception.
+     * The callback receives the raw PDO instance for direct operations.
+     *
+     * @template T
+     * @param callable(PDO): T $callback The callback to execute
+     * @return T The callback's return value
+     * @throws Throwable Re-throws any exception after rollback
+     */
+    public function transaction(callable $callback): mixed
+    {
+        $connection = $this->beginTransaction();
+
+        try {
+            $result = $callback($connection->getPdo());
+            $this->commit($connection);
+            return $result;
+        } catch (Throwable $e) {
+            $this->rollback($connection);
+            throw $e;
+        }
+    }
+
+    /**
      * Validate query for DoS protection
      *
      * @throws QueryValidationException
@@ -635,11 +661,11 @@ final class DatabasePool
             try {
                 $conn = $this->createConnection();
                 $conn->acquire();
-                $this->circuitBreaker->recordSuccess();
-                return $lastError; // This won't be reached
+                $this->getCircuitBreaker()->recordSuccess();
+                return null; // Success - no error
             } catch (PDOException $e) {
                 $lastError = $e;
-                $this->circuitBreaker->recordFailure();
+                $this->getCircuitBreaker()->recordFailure();
             }
         }
 
