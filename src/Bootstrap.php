@@ -58,16 +58,33 @@ final class Bootstrap
 
     /**
      * Detect base path of the application
+     *
+     * Finds the PROJECT root (not the package root).
+     * Skips composer.json files that belong to this package.
      */
     private static function detectBasePath(): string
     {
-        // Find project root (where composer.json is)
+        // Start from current working directory (most reliable for project root)
+        $cwd = getcwd();
+        if ($cwd !== false && file_exists($cwd . '/composer.json') && file_exists($cwd . '/vendor')) {
+            return $cwd;
+        }
+
+        // Fallback: walk up from __DIR__ but skip package's own composer.json
         $dir = __DIR__;
-        while ($dir !== '/' && !file_exists($dir . '/composer.json')) {
+        while ($dir !== '/') {
+            if (file_exists($dir . '/composer.json')) {
+                $composerJson = json_decode(file_get_contents($dir . '/composer.json'), true);
+                // Skip if this is the package itself
+                if (($composerJson['name'] ?? '') !== 'ados-labs/enterprise-admin-panel') {
+                    return $dir;
+                }
+            }
             $dir = dirname($dir);
         }
 
-        return $dir !== '/' ? $dir : dirname(__DIR__, 3);
+        // Last resort: 4 levels up from src/ (src -> package -> ados-labs -> vendor -> project)
+        return dirname(__DIR__, 4);
     }
 
     /**
