@@ -233,53 +233,16 @@
     </div>
 </div>
 
-<script>
-async function refreshDbPoolMetrics() {
-    try {
-        const res = await fetch('<?= htmlspecialchars(($admin_base_path ?? '/admin') . '/api/dbpool') ?>', {
-            credentials: 'same-origin'
-        });
-        const data = await res.json();
-        console.log('DB Pool metrics:', data);
-        // Could update UI dynamically here
-        location.reload();
-    } catch (err) {
-        console.error('Failed to refresh DB pool metrics:', err);
-    }
-}
-
-async function refreshRedisMetrics() {
-    try {
-        const res = await fetch('<?= htmlspecialchars(($admin_base_path ?? '/admin') . '/api/redis') ?>', {
-            credentials: 'same-origin'
-        });
-        const data = await res.json();
-        console.log('Redis metrics:', data);
-
-        const detailsEl = document.getElementById('redis-details');
-        if (detailsEl && data.server) {
-            detailsEl.innerHTML = `
-                <div class="eap-grid eap-grid--2">
-                    <div>Version: <strong>${data.server.version}</strong></div>
-                    <div>Uptime: <strong>${data.server.uptime_days} days</strong></div>
-                    <div>Memory: <strong>${data.server.used_memory}</strong></div>
-                    <div>Clients: <strong>${data.server.connected_clients}</strong></div>
-                    <div>Commands: <strong>${Number(data.server.total_commands).toLocaleString()}</strong></div>
-                    <div>EAP Keys: <strong>${data.eap_keys}</strong></div>
-                </div>
-            `;
-        } else if (detailsEl) {
-            detailsEl.textContent = 'Unable to fetch Redis details';
-        }
-    } catch (err) {
-        console.error('Failed to refresh Redis metrics:', err);
-    }
-}
-
-// Auto-load Redis details on page load
-document.addEventListener('DOMContentLoaded', function() {
-    <?php if (($stats['redis']['enabled'] ?? false) && ($stats['redis']['connected'] ?? false)): ?>
-    refreshRedisMetrics();
-    <?php endif; ?>
-});
-</script>
+<?php
+// Dashboard configuration for JavaScript (passed via data attribute on body)
+$dashboardConfig = [
+    'apiBase' => ($admin_base_path ?? '/admin') . '/api',
+    'redisEnabled' => $stats['redis']['enabled'] ?? false,
+    'redisConnected' => $stats['redis']['connected'] ?? false,
+];
+?>
+<div id="dashboard-config"
+     data-api-base="<?= htmlspecialchars($dashboardConfig['apiBase']) ?>"
+     data-redis-enabled="<?= $dashboardConfig['redisEnabled'] ? 'true' : 'false' ?>"
+     data-redis-connected="<?= $dashboardConfig['redisConnected'] ? 'true' : 'false' ?>"
+     style="display:none;"></div>

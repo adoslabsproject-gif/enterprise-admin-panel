@@ -68,6 +68,7 @@ final class DashboardController extends BaseController
             'modules' => $moduleInfo,
             'tabs' => $tabs,
             'page_title' => 'Dashboard',
+            'extra_scripts' => ['/js/dashboard.js'],
         ]);
     }
 

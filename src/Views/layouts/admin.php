@@ -109,5 +109,10 @@
 
     <script src="/js/admin.js"></script>
     <script src="/js/session-guard.js"></script>
+    <?php if (!empty($extra_scripts)) : ?>
+        <?php foreach ($extra_scripts as $script) : ?>
+    <script src="<?= htmlspecialchars($script) ?>"></script>
+        <?php endforeach; ?>
+    <?php endif; ?>
 </body>
 </html>
