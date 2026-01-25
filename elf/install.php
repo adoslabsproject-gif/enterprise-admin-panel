@@ -32,8 +32,22 @@ foreach ($autoloadPaths as $path) {
 }
 
 if (!$autoloaded) {
-    echo "ERROR: Could not find autoload.php\n";
-    echo "Run 'composer install' first.\n";
+    echo "\n";
+    echo "╔══════════════════════════════════════════════════════════════════╗\n";
+    echo "║  ERROR: Could not find autoload.php                              ║\n";
+    echo "╚══════════════════════════════════════════════════════════════════╝\n";
+    echo "\n";
+    echo "Dependencies are not installed. Run this command first:\n\n";
+
+    // Detect the package root (where composer.json is)
+    $packageRoot = dirname(__DIR__);
+    echo "  cd {$packageRoot}\n";
+    echo "  composer install\n";
+    echo "\n";
+    echo "Then run this script again:\n\n";
+    echo "  cd {$packageRoot}/elf\n";
+    echo "  php install.php\n";
+    echo "\n";
     exit(1);
 }
 

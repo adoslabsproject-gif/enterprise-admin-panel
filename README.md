@@ -51,10 +51,17 @@ Services started:
 - Redis: `localhost:6379`
 - Mailpit: `localhost:8025` (email testing UI)
 
-### Step 3: Run Installation
+### Step 3: Install Package Dependencies
 
 ```bash
-cd vendor/ados-labs/enterprise-admin-panel/elf
+cd vendor/ados-labs/enterprise-admin-panel
+composer install
+```
+
+### Step 4: Run Installation
+
+```bash
+cd elf
 php install.php
 ```
 
@@ -78,16 +85,17 @@ Output example:
 ╚══════════════════════════════════════════════════════════════╝
 ```
 
-### Step 4: Start PHP Server
+### Step 5: Start PHP Server
 
 ```bash
-cd vendor/ados-labs/enterprise-admin-panel
 php -S localhost:8080 -t public
 ```
 
-### Step 5: Access Admin Panel
+(You should already be in `vendor/ados-labs/enterprise-admin-panel` from Step 3)
 
-Open the URL from Step 3 in your browser.
+### Step 6: Access Admin Panel
+
+Open the URL from Step 4 in your browser.
 
 ---
 
