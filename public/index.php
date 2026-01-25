@@ -30,10 +30,13 @@ $autoloadPaths = [
 ];
 
 $autoloaded = false;
+$projectRoot = null;
 foreach ($autoloadPaths as $autoloadPath) {
     if (file_exists($autoloadPath)) {
         require_once $autoloadPath;
         $autoloaded = true;
+        // Project root is one level up from vendor/
+        $projectRoot = dirname($autoloadPath, 2);
         break;
     }
 }
@@ -48,7 +51,8 @@ if (!$autoloaded) {
 
 use AdosLabs\AdminPanel\Bootstrap;
 
-Bootstrap::init(dirname(__DIR__));
+// Use project root (where .env is located), not package directory
+Bootstrap::init($projectRoot);
 
 // Now we have access to:
 // - db() : DatabasePool
