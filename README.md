@@ -33,13 +33,70 @@ This panel generates URLs like:
 
 ## Installation
 
-### Step 1: Install via Composer
+### Quick Start (CLI - copy/paste one line at a time)
 
 ```bash
-composer require ados-labs/enterprise-admin-panel
+mkdir my-project && cd my-project
 ```
 
-### Step 2: Start Docker Services
+```bash
+echo '{"require":{"ados-labs/enterprise-admin-panel":"dev-main"},"repositories":[{"type":"vcs","url":"git@github.com:adoslabsproject-gif/enterprise-admin-panel.git"}],"minimum-stability":"dev","prefer-stable":true}' > composer.json
+```
+
+```bash
+composer install
+```
+
+```bash
+cd vendor/ados-labs/enterprise-admin-panel/elf && docker compose up -d
+```
+
+```bash
+cd .. && composer install
+```
+
+```bash
+cd elf && php install.php --email=admin@example.com
+```
+
+```bash
+cd .. && php -S localhost:8080 -t public
+```
+
+### Detailed Steps (for scripts)
+
+<details>
+<summary>Click to expand formatted version</summary>
+
+#### Step 1: Create project and composer.json
+
+```bash
+mkdir my-project && cd my-project
+
+cat > composer.json << 'EOF'
+{
+    "require": {
+        "ados-labs/enterprise-admin-panel": "dev-main"
+    },
+    "repositories": [
+        {
+            "type": "vcs",
+            "url": "git@github.com:adoslabsproject-gif/enterprise-admin-panel.git"
+        }
+    ],
+    "minimum-stability": "dev",
+    "prefer-stable": true
+}
+EOF
+```
+
+#### Step 2: Install package
+
+```bash
+composer install
+```
+
+#### Step 3: Start Docker Services
 
 ```bash
 cd vendor/ados-labs/enterprise-admin-panel/elf
@@ -51,51 +108,43 @@ Services started:
 - Redis: `localhost:6379`
 - Mailpit: `localhost:8025` (email testing UI)
 
-### Step 3: Install Package Dependencies
+#### Step 4: Install Package Dependencies
 
 ```bash
-cd vendor/ados-labs/enterprise-admin-panel
+cd ..
 composer install
 ```
 
-### Step 4: Run Installation
+#### Step 5: Run Installation
 
 ```bash
 cd elf
-php install.php
+php install.php --email=admin@example.com
 ```
 
 This command:
 1. Runs database migrations
-2. Creates admin user
-3. Generates master token (save it!)
+2. Creates admin user with secure password
+3. Generates master CLI token (save it!)
 4. Shows the secure admin URL (shown once!)
 
-Output example:
-```
-╔══════════════════════════════════════════════════════════════╗
-║                    INSTALLATION COMPLETE                      ║
-╠══════════════════════════════════════════════════════════════╣
-║  Admin Email:     admin@example.com                          ║
-║  Admin Password:  Jk8mP2xL9nQ4wR7v                           ║
-║  Master Token:    a1b2c3d4e5f6...                            ║
-║                                                              ║
-║  ADMIN URL (SAVE THIS - SHOWN ONLY ONCE):                    ║
-║  http://localhost:8080/x-7f3e8a2d9c1b6f4e.../login          ║
-╚══════════════════════════════════════════════════════════════╝
-```
+**SAVE THE OUTPUT! It contains:**
+- Admin URL (secret, never shown again)
+- Admin Password (secure, with special characters)
+- Master CLI Token (required for all CLI operations)
 
-### Step 5: Start PHP Server
+#### Step 6: Start PHP Server
 
 ```bash
+cd ..
 php -S localhost:8080 -t public
 ```
 
-(You should already be in `vendor/ados-labs/enterprise-admin-panel` from Step 3)
+#### Step 7: Access Admin Panel
 
-### Step 6: Access Admin Panel
+Open the URL from Step 5 in your browser.
 
-Open the URL from Step 4 in your browser.
+</details>
 
 ---
 
