@@ -12,12 +12,12 @@ Traditional admin panels use `/admin`. Attackers know this. They scan for it. Th
 
 This panel generates URLs like:
 ```
-/x-d4e8f2a9c6b1d5f3e7a2b8c4d9f1e6a3b7c2d8e4f9a1b5c6d2e7f3a8b4c9d1e5f2/login
+/x-d4e8f2a9c6b1d5f3e7a2b8c4d9f1e6a3/login
 ```
 
-- 256-bit entropy (HMAC-SHA256)
-- Per-user URL binding
-- Rotates on logout
+- 128-bit entropy per URL
+- 2FA enabled by default
+- Emergency access token (bypasses login + 2FA)
 - `/admin` returns 404
 
 ---
@@ -26,14 +26,13 @@ This panel generates URLs like:
 
 - PHP 8.1+
 - PostgreSQL 14+ or MySQL 8.0+
-- Redis (optional, for sessions)
 - Docker/OrbStack (for local development)
 
 ---
 
 ## Installation
 
-### Quick Start (CLI - copy/paste one line at a time)
+### Quick Start (copy/paste one line at a time)
 
 ```bash
 mkdir my-project && cd my-project
@@ -59,347 +58,137 @@ php vendor/ados-labs/enterprise-admin-panel/elf/install.php --email=admin@exampl
 php -S localhost:8080 -t public
 ```
 
-This creates the following structure in your project:
+### What Gets Created
+
 ```
 my-project/
-├── .env                 ← Your configuration (APP_KEY, database, etc.)
+├── .env                 ← Configuration (APP_KEY, database, SMTP)
 ├── composer.json
 ├── public/              ← Web root
-│   ├── index.php        ← Entry point (loads from vendor)
+│   ├── index.php        ← Entry point
 │   ├── css/             ← Stylesheets
-│   └── js/              ← JavaScript
+│   ├── js/              ← JavaScript
+│   └── favicon.ico      ← Favicons
 └── vendor/              ← Dependencies
 ```
 
-### Detailed Steps (for scripts)
+### Services Started by Docker
 
-<details>
-<summary>Click to expand formatted version</summary>
+| Service    | URL                    | Credentials     |
+|------------|------------------------|-----------------|
+| PostgreSQL | localhost:5432         | admin / secret  |
+| Redis      | localhost:6379         | -               |
+| Mailpit    | http://localhost:8025  | (2FA emails)    |
 
-#### Step 1: Create project and composer.json
+---
 
-```bash
-mkdir my-project && cd my-project
+## After Installation
 
-cat > composer.json << 'EOF'
-{
-    "require": {
-        "ados-labs/enterprise-admin-panel": "dev-main"
-    },
-    "repositories": [
-        {
-            "type": "vcs",
-            "url": "git@github.com:adoslabsproject-gif/enterprise-admin-panel.git"
-        }
-    ],
-    "minimum-stability": "dev",
-    "prefer-stable": true
-}
-EOF
+The install script shows credentials **ONCE**. Save them!
+
+- **Admin URL** - Secret URL like `http://localhost:8080/x-abc123.../login`
+- **Password** - Generated secure password with special characters
+- **Master CLI Token** - Required for all CLI commands
+
+### Default Security Settings
+
+- **2FA is ENABLED** by default (codes sent via email to Mailpit)
+- **Emergency access** can be created with CLI command
+
+To disable 2FA:
+```sql
+UPDATE admin_users SET two_factor_enabled = false WHERE email = 'admin@example.com';
 ```
-
-#### Step 2: Install package
-
-```bash
-composer install
-```
-
-#### Step 3: Start Docker Services
-
-```bash
-cd vendor/ados-labs/enterprise-admin-panel/elf
-docker compose up -d
-cd ../../../..
-```
-
-Services started:
-- PostgreSQL: `localhost:5432` (admin/secret)
-- Redis: `localhost:6379`
-- Mailpit: `localhost:8025` (email testing UI)
-
-#### Step 4: Run Installation
-
-```bash
-php vendor/ados-labs/enterprise-admin-panel/elf/install.php --email=admin@example.com
-```
-
-This command:
-1. Runs database migrations
-2. Creates admin user with secure password
-3. Generates master CLI token (save it!)
-4. Shows the secure admin URL (shown once!)
-5. Creates `.env` in project root
-6. Creates `public/index.php` in project root
-
-**SAVE THE OUTPUT! It contains:**
-- Admin URL (secret, never shown again)
-- Admin Password (secure, with special characters)
-- Master CLI Token (required for all CLI operations)
-
-#### Step 5: Start PHP Server
-
-```bash
-php -S localhost:8080 -t public
-```
-
-#### Step 6: Access Admin Panel
-
-Open the URL from Step 4 in your browser.
-
-</details>
 
 ---
 
 ## CLI Commands
 
-All commands are in the `elf/` directory.
+All commands are in `vendor/ados-labs/enterprise-admin-panel/elf/`.
 
-**Important:** All CLI commands (except `token-emergency-use.php`) require three authentication factors:
+**All commands require triple authentication:**
 - `--token=` Master CLI token
 - `--email=` Admin email
 - `--password=` Admin password
 
-This triple authentication prevents unauthorized access even if one factor is compromised.
-
 ### Change Password
 
 ```bash
-php elf/password-change.php --token=MASTER_TOKEN --email=admin@example.com --password=CURRENT --new-password=NEW
+php vendor/ados-labs/enterprise-admin-panel/elf/password-change.php --token=MASTER_TOKEN --email=admin@example.com --password=CURRENT --new-password=NEW
 ```
 
-Requirements for new password:
-- Minimum 12 characters
-- At least 1 number
-- At least 1 special character (!@#$%^&*-_=+)
-
-After password change:
-- All active sessions are invalidated
-- Master CLI token remains unchanged
-- Admin URL remains unchanged
+Requirements: 12+ chars, 1 number, 1 special character (!@#$%^&*-_=+)
 
 ### Regenerate Master Token
 
 ```bash
-php elf/token-master-regenerate.php --token=CURRENT_TOKEN --email=admin@example.com --password=PASSWORD
+php vendor/ados-labs/enterprise-admin-panel/elf/token-master-regenerate.php --token=CURRENT_TOKEN --email=admin@example.com --password=PASSWORD
 ```
 
-Generates a new master CLI token. The old token is immediately invalidated.
+Old token is invalidated immediately.
 
-### Create Emergency Token (Bypass 2FA)
+### Create Emergency Access Token
 
 ```bash
-php elf/token-emergency-create.php --token=MASTER_TOKEN --email=admin@example.com --password=PASSWORD
+php vendor/ados-labs/enterprise-admin-panel/elf/token-emergency-create.php --token=MASTER_TOKEN --email=admin@example.com --password=PASSWORD
 ```
 
-Creates a one-time emergency token to bypass login (including 2FA) if you lose access.
-Store this token offline (printed, in a safe).
+Creates a one-time token that **bypasses login and 2FA**, going directly to dashboard.
+Store offline (printed, in a safe). Valid for 30 days.
 
-### Use Emergency Token
+### Use Emergency Access Token
 
+Via CLI:
 ```bash
-php elf/token-emergency-use.php --token=EMERGENCY_TOKEN
+php vendor/ados-labs/enterprise-admin-panel/elf/token-emergency-use.php --token=EMERGENCY_TOKEN
 ```
 
-Uses the emergency token to reveal the admin URL. The token is invalidated after use.
-Or use it via the web interface: click "Emergency Recovery" on the login page.
+Via browser:
+```
+http://localhost:8080/emergency-login?token=EMERGENCY_TOKEN
+```
+
+Token is **single-use** - invalidated after access.
 
 ---
 
-## Features
+## Development Tools
 
-### Cryptographic URL Security
-
-| Feature | Traditional | This Panel |
-|---------|-------------|------------|
-| URL Pattern | `/admin` | Random 64-char hash |
-| Entropy | 0 bits | 256 bits |
-| User Binding | No | Yes |
-| Rotation | Never | On logout |
-| Brute Force | Easy | 2^256 combinations |
-
-### Multi-Channel 2FA
-
-Supported channels:
-- Email (default, uses Mailpit in development)
-- Telegram
-- Discord
-- Slack
-- TOTP (Google Authenticator, Authy)
-
-2FA is enabled by default. To disable for testing:
-```sql
-UPDATE admin_users SET two_factor_enabled = false WHERE email = 'admin@example.com';
-```
-
-### Session Management
-
-- 60-minute session lifetime
-- Heartbeat every 30 seconds
-- Warning dialog 5 minutes before expiry
-- Auto-logout on expiry
-- URL rotation on logout
-
-### Modular Architecture
-
-Install additional packages to add tabs automatically:
-
-```bash
-composer require ados-labs/enterprise-security-shield
-# Adds: Security, WAF, Honeypot, Banned IPs tabs
-
-composer require ados-labs/enterprise-psr3-logger
-# Adds: Logs, Channels, Telegram Alerts tabs
-
-composer require ados-labs/database-pool
-# Adds: Database Pool, Connections, Metrics tabs
-```
-
-Modules are auto-discovered from `composer.json`:
-```json
-{
-    "extra": {
-        "admin-panel": {
-            "module": "YourNamespace\\YourModule"
-        }
-    }
-}
-```
+| Tool    | URL                   | Purpose              |
+|---------|-----------------------|----------------------|
+| Mailpit | http://localhost:8025 | View 2FA email codes |
 
 ---
 
-## Configuration
+## Security Features
 
-### Environment Variables
+### 2FA (Two-Factor Authentication)
 
-Copy `.env.example` to `.env`:
+- **Enabled by default** for all new users
+- Codes sent via email (Mailpit in development)
+- Channels: Email, Telegram, Discord, Slack, TOTP
 
-```bash
-cp .env.example .env
-```
+### Emergency Access
 
-Required variables:
-```bash
-# Database
-DB_DRIVER=pgsql
-DB_HOST=localhost
-DB_PORT=5432
-DB_DATABASE=admin_panel
-DB_USERNAME=admin
-DB_PASSWORD=secret
+- Created on-demand via CLI (not during install)
+- Bypasses login form and 2FA
+- Goes directly to dashboard
+- Single-use, expires in 30 days
 
-# Security (generate with: php -r "echo bin2hex(random_bytes(32));")
-APP_KEY=your-64-char-hex-key
-RECOVERY_MASTER_KEY=another-64-char-hex-key
-
-# Email (Mailpit for development)
-SMTP_HOST=localhost
-SMTP_PORT=1025
-```
-
-### Database Support
-
-PostgreSQL (recommended):
-```bash
-php elf/install.php --driver=pgsql
-```
-
-MySQL:
-```bash
-php elf/install.php --driver=mysql --port=3306
-```
-
----
-
-## Security
-
-### Password Requirements
+### Password Security
 
 - Minimum 12 characters
-- At least 1 number
-- At least 1 special character
+- At least 1 number + 1 special character
 - Argon2id hashing
 - Account lockout after 5 failed attempts
 
-### Master Token Security
+### URL Security
 
-The master CLI token is:
-- Generated once during installation (shown only once!)
-- Hashed with Argon2id in the database
-- Required for all CLI operations
-- Independent from your password (changing password doesn't affect token)
-
-### Recovery Process
-
-If locked out:
-1. Create emergency token: `php elf/token-emergency-create.php --token=MASTER_TOKEN --email=EMAIL --password=PASSWORD`
-2. Use it via CLI: `php elf/token-emergency-use.php --token=EMERGENCY_TOKEN`
-3. Or use it in browser: `/emergency-login?token=EMERGENCY_TOKEN`
-4. Token is single-use and expires in 30 days by default
-
-### URL Rotation
-
-URLs are rotated:
-- On every logout
-- On password change
-- On security events
-- Manually via CLI
-
-After rotation, old URLs return 404 immediately.
-
----
-
-## Project Structure
-
-```
-enterprise-admin-panel/
-├── elf/                    # CLI tools and Docker
-│   ├── docker-compose.yml  # PostgreSQL, MySQL, Redis, Mailpit
-│   ├── install.php         # First-time installation
-│   ├── password-change.php # Change admin password
-│   ├── token-master-regenerate.php # Regenerate master token
-│   ├── token-emergency-create.php  # Create emergency token
-│   └── token-emergency-use.php     # Use emergency token
-├── public/                 # Web root
-│   ├── index.php           # Entry point
-│   ├── css/                # Stylesheets (CSP compliant)
-│   └── js/                 # JavaScript
-├── src/
-│   ├── Controllers/        # Request handlers
-│   ├── Services/           # Business logic
-│   ├── Middleware/         # Auth, CSRF, HTTPS
-│   ├── Modules/            # Module system
-│   ├── Database/           # Migrations
-│   └── Views/              # PHP templates
-└── docs/                   # Additional documentation
-```
-
----
-
-## Enterprise Lightning Framework
-
-This is Package 0 of the Enterprise Lightning Framework. The framework is modular - install only what you need:
-
-| Package | Purpose |
-|---------|---------|
-| **enterprise-admin-panel** (this) | Admin interface with secure URLs |
-| enterprise-bootstrap | Application foundation, DI, caching |
-| enterprise-security-shield | WAF, rate limiting, bot protection |
-| enterprise-psr3-logger | Logging with database/file handlers |
-| database-pool | Connection pooling, circuit breaker |
-
-Each package works standalone. When installed together, they integrate automatically.
-
-See [docs/FRAMEWORK.md](docs/FRAMEWORK.md) for framework architecture.
-
----
-
-## Documentation
-
-- [CLI Commands](docs/CLI-COMMANDS.md) - Full CLI reference with examples
-- [URL Security](docs/URL-SECURITY.md) - How cryptographic URLs work
-- [2FA Setup](docs/2FA-SETUP.md) - Configure multi-channel authentication
-- [Module Development](docs/MODULES.md) - Create custom admin modules
-- [Framework Architecture](docs/FRAMEWORK.md) - How packages integrate
+| Feature      | Traditional | This Panel          |
+|--------------|-------------|---------------------|
+| URL Pattern  | `/admin`    | `/x-{random 32 hex}`|
+| Entropy      | 0 bits      | 128 bits            |
+| Brute Force  | Easy        | 2^128 combinations  |
 
 ---
 
@@ -407,46 +196,33 @@ See [docs/FRAMEWORK.md](docs/FRAMEWORK.md) for framework architecture.
 
 ### "404 Not Found" on /admin
 
-Expected behavior. The admin URL is secret and was shown only during installation.
-If you lost it, use an emergency token:
-```bash
-php elf/token-emergency-use.php --token=YOUR_EMERGENCY_TOKEN
-```
-
-### "Invalid credentials"
-
-Reset failed attempts:
-```sql
-UPDATE admin_users SET failed_login_attempts = 0, locked_until = NULL
-WHERE email = 'admin@example.com';
-```
+Expected. The admin URL is secret. If lost:
+1. Create emergency token (requires master token + email + password)
+2. Use it to access dashboard
 
 ### 2FA codes not arriving
 
-1. Check Mailpit: http://localhost:8025
-2. Verify SMTP settings in `.env`
+Check Mailpit: http://localhost:8025
 
 ### Lost master token
 
-If you lost your master token, you need to reset it manually in the database:
+Reset manually:
+```bash
+php -r "echo password_hash('your-new-token', PASSWORD_ARGON2ID);"
+```
 ```sql
--- First, generate a new token hash manually:
--- Run: php -r "echo password_hash('your-new-token', PASSWORD_ARGON2ID);"
--- Then update the database:
-UPDATE admin_users SET cli_token_hash = 'PASTE_HASH_HERE' WHERE email = 'admin@example.com';
+UPDATE admin_users SET cli_token_hash = 'PASTE_HASH' WHERE email = 'admin@example.com';
 ```
 
-Or reinstall by dropping all tables and running `php elf/install.php` again.
+### Lost everything
+
+Drop all tables and reinstall:
+```bash
+php vendor/ados-labs/enterprise-admin-panel/elf/install.php --email=admin@example.com
+```
 
 ---
 
 ## License
 
 MIT License - see [LICENSE](LICENSE)
-
----
-
-## Contributing
-
-Issues and pull requests welcome at:
-https://github.com/adoslabsproject-gif/enterprise-admin-panel

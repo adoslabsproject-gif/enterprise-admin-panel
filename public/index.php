@@ -19,8 +19,28 @@ declare(strict_types=1);
 error_reporting(E_ALL);
 ini_set('display_errors', '1');
 
-// Autoload
-require_once __DIR__ . '/../vendor/autoload.php';
+// Autoload - search in multiple locations
+// When installed via composer, we're at: project/vendor/ados-labs/enterprise-admin-panel/public
+// So project root is 4 levels up, and autoload is at project/vendor/autoload.php
+$autoloadPaths = [
+    // Project vendor autoload (when installed as package)
+    dirname(__DIR__, 4) . '/vendor/autoload.php',
+    // Package standalone vendor autoload
+    __DIR__ . '/../vendor/autoload.php',
+];
+
+$autoloaded = false;
+foreach ($autoloadPaths as $autoloadPath) {
+    if (file_exists($autoloadPath)) {
+        require_once $autoloadPath;
+        $autoloaded = true;
+        break;
+    }
+}
+
+if (!$autoloaded) {
+    die('Could not find autoload.php. Run: composer install');
+}
 
 // ============================================================================
 // BOOTSTRAP - Initialize framework (loads .env, db pool, cache, etc.)

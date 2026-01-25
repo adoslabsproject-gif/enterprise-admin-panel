@@ -159,19 +159,23 @@ final class EncryptionService
      * Load key from .env file
      *
      * Searches for .env in multiple locations:
-     * 1. Project root (when installed via composer)
-     * 2. Package root (when running standalone)
+     * 1. Current working directory (project root)
+     * 2. Parent of CWD (when php -S runs with -t public)
+     * 3. Project root via vendor path calculation
+     * 4. Package root (when running standalone)
      */
     private function loadKeyFromEnv(): ?string
     {
-        // Possible .env locations (order matters)
+        $cwd = getcwd() ?: '';
         $possiblePaths = [
-            // Project root (4 levels up from src/Services/)
+            // Current working directory
+            $cwd . '/.env',
+            // Parent of CWD (when running php -S -t public, CWD is public/)
+            dirname($cwd) . '/.env',
+            // Project root (5 levels up from src/Services/ when in vendor)
             dirname(__DIR__, 5) . '/.env',
             // Package root (2 levels up from src/Services/)
             dirname(__DIR__, 2) . '/.env',
-            // Current working directory
-            getcwd() . '/.env',
         ];
 
         foreach ($possiblePaths as $envFile) {

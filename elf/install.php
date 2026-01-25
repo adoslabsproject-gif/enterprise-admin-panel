@@ -169,9 +169,8 @@ echo "\n";
 // Generate or Load APP_KEY (Required for encryption)
 // ============================================================================
 
-$envFile = dirname(__DIR__) . '/.env';
-$projectEnvFile = getcwd() . '/.env';
-$targetEnvFile = file_exists($projectEnvFile) ? $projectEnvFile : $envFile;
+// ALWAYS use project root for .env - never CWD or package dir
+$targetEnvFile = $projectRoot . '/.env';
 
 $appKey = getenv('APP_KEY');
 
@@ -182,6 +181,7 @@ if (!$appKey || $appKey === '') {
         if (preg_match('/^APP_KEY=([a-f0-9]{64})$/m', $envContent, $matches)) {
             $appKey = $matches[1];
             putenv("APP_KEY={$appKey}");
+            echo "Using existing APP_KEY from {$targetEnvFile}\n";
         }
     }
 }
@@ -190,9 +190,6 @@ if (!$appKey || $appKey === '') {
     // Generate new APP_KEY
     $appKey = bin2hex(random_bytes(32));
     echo "Generating encryption key (APP_KEY)...\n";
-
-    // Save .env in PROJECT ROOT (not vendor)
-    $targetEnvFile = $projectRoot . '/.env';
 
     if (file_exists($targetEnvFile)) {
         $envContent = file_get_contents($targetEnvFile);
@@ -363,6 +360,7 @@ $stmt->execute([
     true,
     true, // MASTER ADMIN
     $masterTokenHash,
+    // 2FA enabled by default from database schema (two_factor_enabled DEFAULT true)
 ]);
 
 $adminUserId = $pdo->lastInsertId();
@@ -598,7 +596,7 @@ printf("│  Email:    %-64s│\n", $adminEmail);
 printf("│  Password: %-64s│\n", $adminPassword);
 echo "│                                                                             │\n";
 echo "├──────────────────────────────────────────────────────────────────────────────┤\n";
-echo "│  MASTER CLI TOKEN (for emergency recovery and CLI operations)               │\n";
+echo "│  MASTER CLI TOKEN (for CLI operations)                                      │\n";
 echo "├──────────────────────────────────────────────────────────────────────────────┤\n";
 echo "│                                                                             │\n";
 printf("│  %-75s│\n", $plainMasterToken);
@@ -606,21 +604,27 @@ echo "│                                                                       
 echo "└──────────────────────────────────────────────────────────────────────────────┘\n";
 echo "\n";
 echo "╔══════════════════════════════════════════════════════════════════════════════╗\n";
-echo "║  SECURITY WARNINGS                                                          ║\n";
+echo "║  SECURITY INFO                                                              ║\n";
 echo "╠══════════════════════════════════════════════════════════════════════════════╣\n";
-echo "║  1. Save ALL credentials in a PASSWORD MANAGER                              ║\n";
-echo "║  2. The URL, password, and token will NEVER be shown again                  ║\n";
-echo "║  3. /admin/login is BLOCKED - only the secret URL works                     ║\n";
-echo "║  4. Change your password after first login                                  ║\n";
-echo "║  5. Enable 2FA for maximum security                                         ║\n";
-echo "║  6. The Master Token is required for all CLI operations                     ║\n";
+echo "║  • 2FA is ENABLED by default (codes sent via email)                         ║\n";
+echo "║  • Save ALL credentials in a PASSWORD MANAGER                               ║\n";
+echo "║  • These credentials will NEVER be shown again                              ║\n";
+echo "║  • /admin is BLOCKED - only the secret URL works                            ║\n";
+echo "║  • To disable 2FA: UPDATE admin_users SET two_factor_enabled=false          ║\n";
 echo "╚══════════════════════════════════════════════════════════════════════════════╝\n";
 echo "\n";
-echo "MASTER TOKEN USAGE:\n";
-echo "  All CLI commands require: --token=YOUR_TOKEN --email=YOUR_EMAIL --password=YOUR_PASSWORD\n\n";
-echo "  Examples:\n";
-echo "    php vendor/ados-labs/enterprise-admin-panel/elf/password-change.php --token=... --email=... --password=... --new-password=...\n";
-echo "    php vendor/ados-labs/enterprise-admin-panel/elf/token-emergency-create.php --token=... --email=... --password=...\n";
+echo "DEVELOPMENT TOOLS:\n";
+echo "  Mailpit (view 2FA emails): http://localhost:8025\n";
+echo "\n";
+echo "CLI COMMANDS (all require --token=MASTER_TOKEN --email=EMAIL --password=PASSWORD):\n";
+echo "  Change password:        php vendor/ados-labs/enterprise-admin-panel/elf/password-change.php --new-password=...\n";
+echo "  Create emergency token: php vendor/ados-labs/enterprise-admin-panel/elf/token-emergency-create.php\n";
+echo "  Regenerate CLI token:   php vendor/ados-labs/enterprise-admin-panel/elf/token-master-regenerate.php\n";
+echo "\n";
+echo "EMERGENCY ACCESS (if locked out - bypasses login + 2FA, goes to dashboard):\n";
+echo "  1. First create token:  php elf/token-emergency-create.php --token=... --email=... --password=...\n";
+echo "  2. Then use via CLI:    php elf/token-emergency-use.php --token=EMERGENCY_TOKEN\n";
+echo "  3. Or via browser:      http://localhost:8080/emergency-login?token=EMERGENCY_TOKEN\n";
 echo "\n";
 
 // ============================================================================
@@ -676,6 +680,28 @@ foreach ($assetDirs as $assetDir) {
         }
         echo "  [OK] Copied {$assetDir}/ assets\n";
     }
+}
+
+// Copy favicon files
+$faviconFiles = [
+    'favicon.ico',
+    'favicon-16x16.png',
+    'favicon-32x32.png',
+    'apple-touch-icon.png',
+    'android-chrome-192x192.png',
+    'android-chrome-512x512.png',
+];
+
+$faviconsCopied = 0;
+foreach ($faviconFiles as $favicon) {
+    $source = $packagePublic . '/' . $favicon;
+    if (file_exists($source)) {
+        copy($source, $publicDir . '/' . $favicon);
+        $faviconsCopied++;
+    }
+}
+if ($faviconsCopied > 0) {
+    echo "  [OK] Copied {$faviconsCopied} favicon files\n";
 }
 
 echo "\n";

@@ -40,9 +40,10 @@ CREATE TABLE IF NOT EXISTS admin_users (
     failed_login_attempts INTEGER DEFAULT 0,
     locked_until TIMESTAMP DEFAULT NULL,
 
-    -- Two-factor authentication
+    -- Two-factor authentication (ENABLED BY DEFAULT for security)
     two_factor_secret VARCHAR(255) DEFAULT NULL,
-    two_factor_enabled BOOLEAN DEFAULT false,
+    two_factor_enabled BOOLEAN DEFAULT true,
+    two_factor_channel VARCHAR(20) DEFAULT 'email',
     two_factor_recovery_codes JSONB DEFAULT NULL,
 
     -- Password reset
