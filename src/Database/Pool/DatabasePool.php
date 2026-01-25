@@ -590,10 +590,22 @@ final class DatabasePool
      */
     private function removeConnection(int $index): void
     {
-        // Clear statement cache for this connection to prevent memory leak
-        if (isset($this->pool[$index])) {
-            $this->clearStatementCacheForConnection($this->pool[$index]->getIdentifier());
+        if (!isset($this->pool[$index])) {
+            return;
         }
+
+        $conn = $this->pool[$index];
+
+        // Clear statement cache for this connection to prevent memory leak
+        $this->clearStatementCacheForConnection($conn->getIdentifier());
+
+        // Explicitly close the PDO connection
+        try {
+            $conn->close();
+        } catch (\Throwable $e) {
+            // Ignore - connection may already be dead
+        }
+
         array_splice($this->pool, $index, 1);
     }
 
@@ -952,20 +964,21 @@ final class DatabasePool
 
     /**
      * Shutdown handler - close all connections
+     *
+     * Explicitly closes all PDO connections to release database resources
+     * immediately. Important for long-running processes (Swoole, RoadRunner).
      */
     public function shutdown(): void
     {
         // Flush any pending metrics
         $this->metricsCollector?->flush();
 
+        // Explicitly close all connections
         foreach ($this->pool as $conn) {
-            if ($conn->isInTransaction()) {
-                try {
-                    $conn->getPdo()->rollBack();
-                    $this->transactionRollbacks++;
-                } catch (PDOException $e) {
-                    // Ignore
-                }
+            try {
+                $conn->close(); // Explicitly close PDO connection
+            } catch (\Throwable $e) {
+                // Ignore - connection may already be dead
             }
         }
 

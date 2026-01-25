@@ -181,13 +181,21 @@ final class Bootstrap
     private static function registerDatabasePool(array $configOverride = []): void
     {
         Container::singleton('db.pool', function () use ($configOverride) {
+            // Validate required environment variables - NO hardcoded passwords
+            if (empty($_ENV['DB_PASSWORD']) && !isset($configOverride['password'])) {
+                throw new \RuntimeException(
+                    'DB_PASSWORD environment variable is required. ' .
+                    'Set it in your .env file or pass password in configOverride.'
+                );
+            }
+
             $config = array_merge([
                 'driver' => $_ENV['DB_DRIVER'] ?? 'pgsql',
                 'host' => $_ENV['DB_HOST'] ?? 'localhost',
                 'port' => (int) ($_ENV['DB_PORT'] ?? 5432),
                 'database' => $_ENV['DB_DATABASE'] ?? 'admin_panel',
                 'username' => $_ENV['DB_USERNAME'] ?? 'admin',
-                'password' => $_ENV['DB_PASSWORD'] ?? 'secret',
+                'password' => $_ENV['DB_PASSWORD'] ?? '',
                 'charset' => $_ENV['DB_CHARSET'] ?? 'utf8',
                 'pool_min' => (int) ($_ENV['DB_POOL_MIN'] ?? 2),
                 'pool_max' => (int) ($_ENV['DB_POOL_MAX'] ?? 10),

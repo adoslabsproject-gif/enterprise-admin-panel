@@ -30,12 +30,19 @@ final class PooledConnection
     private int $queryCount = 0;
     private float $totalQueryTime = 0.0;
     private bool $inTransaction = false;
+    private bool $closed = false;
+
+    /**
+     * PDO connection (nullable to allow explicit closure)
+     */
+    private ?PDO $pdo;
 
     public function __construct(
-        private readonly PDO $pdo,
+        PDO $pdo,
         private readonly int $maxLifetime,
         private readonly string $identifier
     ) {
+        $this->pdo = $pdo;
         $this->createdAt = microtime(true);
         $this->lastUsedAt = $this->createdAt;
         $this->lastValidatedAt = $this->createdAt;
@@ -44,10 +51,60 @@ final class PooledConnection
 
     /**
      * Get the underlying PDO connection
+     *
+     * @throws \RuntimeException If connection has been closed
      */
     public function getPdo(): PDO
     {
+        if ($this->closed || $this->pdo === null) {
+            throw new \RuntimeException('Connection has been closed');
+        }
         return $this->pdo;
+    }
+
+    /**
+     * Explicitly close the PDO connection
+     *
+     * This releases the database connection immediately rather than
+     * waiting for garbage collection. Important for long-running processes.
+     */
+    public function close(): void
+    {
+        if ($this->closed) {
+            return;
+        }
+
+        // Rollback any uncommitted transaction
+        if ($this->inTransaction && $this->pdo !== null) {
+            try {
+                $this->pdo->rollBack();
+            } catch (PDOException $e) {
+                // Ignore - connection may already be dead
+            }
+            $this->inTransaction = false;
+        }
+
+        // Release PDO reference (triggers connection close)
+        $this->pdo = null;
+        $this->closed = true;
+        $this->healthy = false;
+        $this->inUse = false;
+    }
+
+    /**
+     * Check if connection has been closed
+     */
+    public function isClosed(): bool
+    {
+        return $this->closed;
+    }
+
+    /**
+     * Destructor - ensure connection is closed
+     */
+    public function __destruct()
+    {
+        $this->close();
     }
 
     /**

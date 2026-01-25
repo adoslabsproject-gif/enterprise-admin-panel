@@ -83,5 +83,21 @@ return function (RouteDefinition $routes): void {
         // Get recent audit events
         $routes->get('/audit/recent', 'ApiController@recentAudit')
             ->name('api.audit.recent');
+
+        // ====================================================================
+        // Infrastructure Metrics
+        // ====================================================================
+
+        // Database pool metrics
+        $routes->get('/dbpool', 'DashboardController@dbPoolMetrics')
+            ->name('api.dbpool');
+
+        // Redis metrics
+        $routes->get('/redis', 'DashboardController@redisMetrics')
+            ->name('api.redis');
+
+        // Health check endpoint
+        $routes->get('/health', 'ApiController@health')
+            ->name('api.health');
     }, ['auth']);
 };

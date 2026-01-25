@@ -124,6 +124,92 @@ final class DashboardController extends BaseController
     }
 
     /**
+     * Database Pool metrics API endpoint
+     * GET /admin/api/dbpool
+     */
+    public function dbPoolMetrics(): Response
+    {
+        $stats = $this->db->getStats();
+
+        return $this->json([
+            'pool' => $stats['pool'],
+            'circuit_breaker' => $stats['circuit_breaker'],
+            'metrics' => $stats['metrics'],
+            'config' => [
+                'driver' => $stats['config']['driver'],
+                'host' => $stats['config']['host'],
+                'database' => $stats['config']['database'],
+                'min_connections' => $stats['config']['min_connections'],
+                'max_connections' => $stats['config']['max_connections'],
+            ],
+        ]);
+    }
+
+    /**
+     * Redis metrics API endpoint
+     * GET /admin/api/redis
+     */
+    public function redisMetrics(): Response
+    {
+        $poolStats = $this->db->getStats();
+        $redisConnected = $poolStats['redis']['connected'] ?? false;
+
+        $result = [
+            'enabled' => $poolStats['config']['redis_enabled'] ?? false,
+            'connected' => $redisConnected,
+            'worker_count' => $poolStats['redis']['worker_count'] ?? 0,
+        ];
+
+        // Get Redis server info if connected
+        if ($redisConnected) {
+            $redisManager = $this->db->getRedisStateManager();
+            if ($redisManager) {
+                try {
+                    $redis = new \Redis();
+                    $host = $_ENV['REDIS_HOST'] ?? 'localhost';
+                    $port = (int) ($_ENV['REDIS_PORT'] ?? 6379);
+                    $password = $_ENV['REDIS_PASSWORD'] ?? null;
+
+                    $redis->connect($host, $port, 2.0);
+                    if ($password) {
+                        $redis->auth($password);
+                    }
+
+                    $info = $redis->info();
+                    $result['server'] = [
+                        'version' => $info['redis_version'] ?? 'unknown',
+                        'uptime_days' => round(($info['uptime_in_seconds'] ?? 0) / 86400, 1),
+                        'connected_clients' => (int) ($info['connected_clients'] ?? 0),
+                        'used_memory' => $info['used_memory_human'] ?? '0B',
+                        'used_memory_peak' => $info['used_memory_peak_human'] ?? '0B',
+                        'total_commands' => (int) ($info['total_commands_processed'] ?? 0),
+                        'keyspace_hits' => (int) ($info['keyspace_hits'] ?? 0),
+                        'keyspace_misses' => (int) ($info['keyspace_misses'] ?? 0),
+                    ];
+
+                    // Get EAP key count
+                    $prefix = $_ENV['REDIS_PREFIX'] ?? 'eap:';
+                    $keys = $redis->keys($prefix . '*');
+                    $result['eap_keys'] = count($keys);
+
+                    // Circuit breaker state
+                    $circuitKey = $prefix . 'dbpool:circuit:' . ($_ENV['DB_DATABASE'] ?? 'admin_panel');
+                    $circuitState = $redis->hGetAll($circuitKey);
+                    if (!empty($circuitState)) {
+                        $result['circuit_breaker'] = $circuitState;
+                    }
+
+                    $redis->close();
+                } catch (\Throwable $e) {
+                    $result['error'] = $e->getMessage();
+                }
+            }
+        }
+
+        return $this->json($result);
+    }
+
+    /**
      * Get dashboard statistics
      */
     private function getStats(): array
@@ -136,6 +222,9 @@ final class DashboardController extends BaseController
 
         // Module stats
         $moduleCount = count($this->moduleRegistry->getEnabledModules());
+
+        // Database pool stats
+        $dbPoolStats = $this->db->getStats();
 
         return [
             'users' => [
@@ -155,6 +244,20 @@ final class DashboardController extends BaseController
             ],
             'modules' => [
                 'enabled' => $moduleCount,
+            ],
+            'database' => [
+                'driver' => $dbPoolStats['config']['driver'],
+                'connections' => $dbPoolStats['pool']['total'],
+                'idle' => $dbPoolStats['pool']['idle'],
+                'in_use' => $dbPoolStats['pool']['in_use'],
+                'circuit_state' => $dbPoolStats['circuit_breaker']['state'] ?? 'unknown',
+                'queries' => $dbPoolStats['metrics']['local']['total_queries'] ?? 0,
+                'avg_query_ms' => round($dbPoolStats['metrics']['local']['avg_query_time_ms'] ?? 0, 2),
+            ],
+            'redis' => [
+                'enabled' => $dbPoolStats['config']['redis_enabled'] ?? false,
+                'connected' => $dbPoolStats['redis']['connected'] ?? false,
+                'workers' => $dbPoolStats['redis']['worker_count'] ?? 0,
             ],
             'system' => [
                 'php_version' => PHP_VERSION,
