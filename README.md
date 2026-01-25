@@ -48,19 +48,27 @@ composer install
 ```
 
 ```bash
-cd vendor/ados-labs/enterprise-admin-panel/elf && docker compose up -d
+cd vendor/ados-labs/enterprise-admin-panel/elf && docker compose up -d && cd ../../../..
 ```
 
 ```bash
-cd .. && composer install
+php vendor/ados-labs/enterprise-admin-panel/elf/install.php --email=admin@example.com
 ```
 
 ```bash
-cd elf && php install.php --email=admin@example.com
+php -S localhost:8080 -t public
 ```
 
-```bash
-cd .. && php -S localhost:8080 -t public
+This creates the following structure in your project:
+```
+my-project/
+├── .env                 ← Your configuration (APP_KEY, database, etc.)
+├── composer.json
+├── public/              ← Web root
+│   ├── index.php        ← Entry point (loads from vendor)
+│   ├── css/             ← Stylesheets
+│   └── js/              ← JavaScript
+└── vendor/              ← Dependencies
 ```
 
 ### Detailed Steps (for scripts)
@@ -101,6 +109,7 @@ composer install
 ```bash
 cd vendor/ados-labs/enterprise-admin-panel/elf
 docker compose up -d
+cd ../../../..
 ```
 
 Services started:
@@ -108,18 +117,10 @@ Services started:
 - Redis: `localhost:6379`
 - Mailpit: `localhost:8025` (email testing UI)
 
-#### Step 4: Install Package Dependencies
+#### Step 4: Run Installation
 
 ```bash
-cd ..
-composer install
-```
-
-#### Step 5: Run Installation
-
-```bash
-cd elf
-php install.php --email=admin@example.com
+php vendor/ados-labs/enterprise-admin-panel/elf/install.php --email=admin@example.com
 ```
 
 This command:
@@ -127,22 +128,23 @@ This command:
 2. Creates admin user with secure password
 3. Generates master CLI token (save it!)
 4. Shows the secure admin URL (shown once!)
+5. Creates `.env` in project root
+6. Creates `public/index.php` in project root
 
 **SAVE THE OUTPUT! It contains:**
 - Admin URL (secret, never shown again)
 - Admin Password (secure, with special characters)
 - Master CLI Token (required for all CLI operations)
 
-#### Step 6: Start PHP Server
+#### Step 5: Start PHP Server
 
 ```bash
-cd ..
 php -S localhost:8080 -t public
 ```
 
-#### Step 7: Access Admin Panel
+#### Step 6: Access Admin Panel
 
-Open the URL from Step 5 in your browser.
+Open the URL from Step 4 in your browser.
 
 </details>
 

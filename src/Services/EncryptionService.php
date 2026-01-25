@@ -157,19 +157,31 @@ final class EncryptionService
 
     /**
      * Load key from .env file
+     *
+     * Searches for .env in multiple locations:
+     * 1. Project root (when installed via composer)
+     * 2. Package root (when running standalone)
      */
     private function loadKeyFromEnv(): ?string
     {
-        $envFile = dirname(__DIR__, 2) . '/.env';
+        // Possible .env locations (order matters)
+        $possiblePaths = [
+            // Project root (4 levels up from src/Services/)
+            dirname(__DIR__, 5) . '/.env',
+            // Package root (2 levels up from src/Services/)
+            dirname(__DIR__, 2) . '/.env',
+            // Current working directory
+            getcwd() . '/.env',
+        ];
 
-        if (!file_exists($envFile)) {
-            return null;
-        }
+        foreach ($possiblePaths as $envFile) {
+            if (file_exists($envFile)) {
+                $content = file_get_contents($envFile);
 
-        $content = file_get_contents($envFile);
-
-        if (preg_match('/^APP_KEY=(.+)$/m', $content, $matches)) {
-            return trim($matches[1]);
+                if (preg_match('/^APP_KEY=(.+)$/m', $content, $matches)) {
+                    return trim($matches[1]);
+                }
+            }
         }
 
         return null;
