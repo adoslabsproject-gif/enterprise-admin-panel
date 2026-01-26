@@ -9,6 +9,11 @@
     <title><?= htmlspecialchars($page_title ?? 'Admin Panel') ?> - Enterprise Admin</title>
     <link rel="icon" type="image/x-icon" href="/favicon.ico">
     <link rel="stylesheet" href="/css/admin.css">
+    <?php if (!empty($extra_styles)) : ?>
+        <?php foreach ($extra_styles as $style) : ?>
+    <link rel="stylesheet" href="<?= htmlspecialchars($style) ?>">
+        <?php endforeach; ?>
+    <?php endif; ?>
     <?= $csrf_meta ?? '' ?>
 </head>
 <body>
