@@ -167,7 +167,13 @@ if (file_exists($targetEnvFile)) {
 // Configuration (from CLI options, then .env, then defaults)
 // ============================================================================
 
-$driver = $options['driver'] ?? getenv('DB_DRIVER') ?: 'postgresql';
+$driverInput = $options['driver'] ?? getenv('DB_DRIVER') ?: 'pgsql';
+// Normalize driver name: accept both 'postgresql' and 'pgsql', store as 'pgsql'
+$driver = match ($driverInput) {
+    'postgresql', 'pgsql' => 'pgsql',
+    'mysql' => 'mysql',
+    default => 'pgsql',
+};
 $host = $options['host'] ?? getenv('DB_HOST') ?: 'localhost';
 $port = $options['port'] ?? getenv('DB_PORT') ?: ($driver === 'mysql' ? '3306' : '5432');
 $database = $options['database'] ?? getenv('DB_DATABASE') ?: 'admin_panel';
@@ -705,6 +711,10 @@ $indexContent = <<<'PHP'
  */
 
 declare(strict_types=1);
+
+// Define project root BEFORE loading the package
+// This ensures .env is found correctly even with symlinked packages
+define('EAP_PROJECT_ROOT', dirname(__DIR__));
 
 // Load the actual index.php from vendor
 require __DIR__ . '/../vendor/ados-labs/enterprise-admin-panel/public/index.php';
