@@ -84,6 +84,64 @@ if (!$autoloaded) {
 }
 
 // ============================================================================
+// MODULE ASSETS - Serve CSS/JS directly from vendor packages (BEFORE bootstrap)
+// This avoids initializing DB/cache just to serve static files
+// Path: /module-assets/{package}/{file} -> vendor/ados-labs/{package}/public/{file}
+// ============================================================================
+
+$requestPath = parse_url($_SERVER['REQUEST_URI'] ?? '/', PHP_URL_PATH);
+
+if (preg_match('#^/module-assets/([a-z0-9-]+)/(.+)$#', $requestPath, $matches)) {
+    $package = $matches[1];
+    $file = $matches[2];
+
+    // Security: only allow specific extensions
+    $allowedExtensions = ['css', 'js', 'png', 'jpg', 'jpeg', 'gif', 'svg', 'woff', 'woff2', 'ttf', 'eot'];
+    $ext = strtolower(pathinfo($file, PATHINFO_EXTENSION));
+
+    if (!in_array($ext, $allowedExtensions, true)) {
+        http_response_code(403);
+        exit('Forbidden');
+    }
+
+    // Security: prevent directory traversal
+    if (str_contains($file, '..') || str_contains($package, '..')) {
+        http_response_code(403);
+        exit('Forbidden');
+    }
+
+    // Build path to vendor package
+    $assetPath = $projectRoot . '/vendor/ados-labs/' . $package . '/public/' . $file;
+
+    if (!file_exists($assetPath) || !is_file($assetPath)) {
+        http_response_code(404);
+        exit('Not Found');
+    }
+
+    // Set content type
+    $contentTypes = [
+        'css' => 'text/css',
+        'js' => 'application/javascript',
+        'png' => 'image/png',
+        'jpg' => 'image/jpeg',
+        'jpeg' => 'image/jpeg',
+        'gif' => 'image/gif',
+        'svg' => 'image/svg+xml',
+        'woff' => 'font/woff',
+        'woff2' => 'font/woff2',
+        'ttf' => 'font/ttf',
+        'eot' => 'application/vnd.ms-fontobject',
+    ];
+
+    header('Content-Type: ' . ($contentTypes[$ext] ?? 'application/octet-stream'));
+    header('Cache-Control: public, max-age=31536000'); // 1 year cache
+    header('X-Content-Type-Options: nosniff');
+
+    readfile($assetPath);
+    exit;
+}
+
+// ============================================================================
 // BOOTSTRAP - Initialize framework (loads .env, db pool, cache, etc.)
 // ============================================================================
 
@@ -146,61 +204,6 @@ $fullPath = parse_url($_SERVER['REQUEST_URI'], PHP_URL_PATH);
 
 // Create PSR-7 compliant request object
 $request = Request::fromGlobals();
-
-// ============================================================================
-// MODULE ASSETS - Serve CSS/JS directly from vendor packages
-// Path: /module-assets/{package}/{file} -> vendor/ados-labs/{package}/public/{file}
-// ============================================================================
-
-if (preg_match('#^/module-assets/([a-z0-9-]+)/(.+)$#', $fullPath, $matches)) {
-    $package = $matches[1];
-    $file = $matches[2];
-
-    // Security: only allow specific extensions
-    $allowedExtensions = ['css', 'js', 'png', 'jpg', 'jpeg', 'gif', 'svg', 'woff', 'woff2', 'ttf', 'eot'];
-    $ext = strtolower(pathinfo($file, PATHINFO_EXTENSION));
-
-    if (!in_array($ext, $allowedExtensions, true)) {
-        http_response_code(403);
-        exit('Forbidden');
-    }
-
-    // Security: prevent directory traversal
-    if (str_contains($file, '..') || str_contains($package, '..')) {
-        http_response_code(403);
-        exit('Forbidden');
-    }
-
-    // Build path to vendor package
-    $assetPath = $projectRoot . '/vendor/ados-labs/' . $package . '/public/' . $file;
-
-    if (!file_exists($assetPath) || !is_file($assetPath)) {
-        http_response_code(404);
-        exit('Not Found');
-    }
-
-    // Set content type
-    $contentTypes = [
-        'css' => 'text/css',
-        'js' => 'application/javascript',
-        'png' => 'image/png',
-        'jpg' => 'image/jpeg',
-        'jpeg' => 'image/jpeg',
-        'gif' => 'image/gif',
-        'svg' => 'image/svg+xml',
-        'woff' => 'font/woff',
-        'woff2' => 'font/woff2',
-        'ttf' => 'font/ttf',
-        'eot' => 'application/vnd.ms-fontobject',
-    ];
-
-    header('Content-Type: ' . ($contentTypes[$ext] ?? 'application/octet-stream'));
-    header('Cache-Control: public, max-age=31536000'); // 1 year cache
-    header('X-Content-Type-Options: nosniff');
-
-    readfile($assetPath);
-    exit;
-}
 
 // ============================================================================
 // Session Cookie Helper
