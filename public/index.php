@@ -19,25 +19,63 @@ declare(strict_types=1);
 error_reporting(E_ALL);
 ini_set('display_errors', '1');
 
-// Autoload - search in multiple locations
-// When installed via composer, we're at: project/vendor/ados-labs/enterprise-admin-panel/public
-// So project root is 4 levels up, and autoload is at project/vendor/autoload.php
-$autoloadPaths = [
-    // Project vendor autoload (when installed as package)
-    dirname(__DIR__, 4) . '/vendor/autoload.php',
-    // Package standalone vendor autoload
-    __DIR__ . '/../vendor/autoload.php',
-];
+// ============================================================================
+// AUTOLOAD DETECTION
+// Supports: normal install, path repository (symlink), and standalone
+// ============================================================================
 
 $autoloaded = false;
 $projectRoot = null;
-foreach ($autoloadPaths as $autoloadPath) {
+
+// Method 1: Check if EAP_PROJECT_ROOT is defined by wrapper index.php
+// This is the most reliable method when installed as a package
+if (defined('EAP_PROJECT_ROOT')) {
+    $projectRoot = EAP_PROJECT_ROOT;
+    $autoloadPath = $projectRoot . '/vendor/autoload.php';
     if (file_exists($autoloadPath)) {
         require_once $autoloadPath;
         $autoloaded = true;
-        // Project root is one level up from vendor/
-        $projectRoot = dirname($autoloadPath, 2);
-        break;
+    }
+}
+
+// Method 2: Use getcwd() - works when running from project root
+// This handles symlink case where __DIR__ resolves to original package location
+if (!$autoloaded) {
+    $cwd = getcwd();
+    if ($cwd !== false) {
+        // Check if we're in public/ or project root
+        $checkPaths = [
+            $cwd . '/vendor/autoload.php',           // Running from project root
+            dirname($cwd) . '/vendor/autoload.php',  // Running from public/
+        ];
+
+        foreach ($checkPaths as $autoloadPath) {
+            if (file_exists($autoloadPath)) {
+                require_once $autoloadPath;
+                $autoloaded = true;
+                $projectRoot = dirname($autoloadPath, 2);
+                break;
+            }
+        }
+    }
+}
+
+// Method 3: Walk up from __DIR__ (original method - works for normal installs)
+if (!$autoloaded) {
+    $autoloadPaths = [
+        // Project vendor autoload (when installed as package via normal composer)
+        dirname(__DIR__, 4) . '/vendor/autoload.php',
+        // Package standalone vendor autoload
+        __DIR__ . '/../vendor/autoload.php',
+    ];
+
+    foreach ($autoloadPaths as $autoloadPath) {
+        if (file_exists($autoloadPath)) {
+            require_once $autoloadPath;
+            $autoloaded = true;
+            $projectRoot = dirname($autoloadPath, 2);
+            break;
+        }
     }
 }
 
@@ -108,6 +146,61 @@ $fullPath = parse_url($_SERVER['REQUEST_URI'], PHP_URL_PATH);
 
 // Create PSR-7 compliant request object
 $request = Request::fromGlobals();
+
+// ============================================================================
+// MODULE ASSETS - Serve CSS/JS directly from vendor packages
+// Path: /module-assets/{package}/{file} -> vendor/ados-labs/{package}/public/{file}
+// ============================================================================
+
+if (preg_match('#^/module-assets/([a-z0-9-]+)/(.+)$#', $fullPath, $matches)) {
+    $package = $matches[1];
+    $file = $matches[2];
+
+    // Security: only allow specific extensions
+    $allowedExtensions = ['css', 'js', 'png', 'jpg', 'jpeg', 'gif', 'svg', 'woff', 'woff2', 'ttf', 'eot'];
+    $ext = strtolower(pathinfo($file, PATHINFO_EXTENSION));
+
+    if (!in_array($ext, $allowedExtensions, true)) {
+        http_response_code(403);
+        exit('Forbidden');
+    }
+
+    // Security: prevent directory traversal
+    if (str_contains($file, '..') || str_contains($package, '..')) {
+        http_response_code(403);
+        exit('Forbidden');
+    }
+
+    // Build path to vendor package
+    $assetPath = $projectRoot . '/vendor/ados-labs/' . $package . '/public/' . $file;
+
+    if (!file_exists($assetPath) || !is_file($assetPath)) {
+        http_response_code(404);
+        exit('Not Found');
+    }
+
+    // Set content type
+    $contentTypes = [
+        'css' => 'text/css',
+        'js' => 'application/javascript',
+        'png' => 'image/png',
+        'jpg' => 'image/jpeg',
+        'jpeg' => 'image/jpeg',
+        'gif' => 'image/gif',
+        'svg' => 'image/svg+xml',
+        'woff' => 'font/woff',
+        'woff2' => 'font/woff2',
+        'ttf' => 'font/ttf',
+        'eot' => 'application/vnd.ms-fontobject',
+    ];
+
+    header('Content-Type: ' . ($contentTypes[$ext] ?? 'application/octet-stream'));
+    header('Cache-Control: public, max-age=31536000'); // 1 year cache
+    header('X-Content-Type-Options: nosniff');
+
+    readfile($assetPath);
+    exit;
+}
 
 // ============================================================================
 // Session Cookie Helper
