@@ -111,15 +111,20 @@
         },
 
         handleHeartbeatResponse: function(data) {
+            console.log('[SessionGuard] handleHeartbeatResponse:', data);
+
             if (!data.active) {
+                console.log('[SessionGuard] Session not active, redirecting...');
                 this.handleSessionExpired();
                 return;
             }
 
             // Convert expires_in to absolute timestamp
             this.expiresAt = Date.now() + (data.expires_in * 1000);
+            console.log('[SessionGuard] expires_in:', data.expires_in, 'should_warn:', data.should_warn, 'warningShown:', this.warningShown);
 
             if (data.should_warn && !this.warningShown) {
+                console.log('[SessionGuard] Calling showWarning()...');
                 this.showWarning();
             }
         },
@@ -150,11 +155,15 @@
 
         showWarning: function() {
             var self = this;
+            console.log('[SessionGuard] showWarning() called');
             this.warningShown = true;
 
             // Remove existing dialog if any
             var existing = document.getElementById('session-warning-dialog');
-            if (existing) existing.remove();
+            if (existing) {
+                console.log('[SessionGuard] Removing existing dialog');
+                existing.remove();
+            }
 
             // Create dialog
             var dialog = document.createElement('div');
@@ -162,30 +171,32 @@
             dialog.className = 'session-warning-overlay';
             dialog.innerHTML = this.getWarningHTML();
             document.body.appendChild(dialog);
+            console.log('[SessionGuard] Dialog appended to body');
 
-            // Use event delegation on the dialog container
-            this.boundDialogClickHandler = function(e) {
-                var target = e.target;
+            // Direct button event listeners (more reliable than delegation)
+            var extendBtn = document.getElementById('session-extend-btn');
+            var logoutBtn = document.getElementById('session-logout-btn');
 
-                // Check if clicked element or parent is a button
-                if (target.id === 'session-extend-btn' || target.closest('#session-extend-btn')) {
+            console.log('[SessionGuard] extendBtn found:', !!extendBtn);
+            console.log('[SessionGuard] logoutBtn found:', !!logoutBtn);
+
+            if (extendBtn) {
+                extendBtn.onclick = function(e) {
                     e.preventDefault();
                     e.stopPropagation();
                     console.log('[SessionGuard] EXTEND button clicked!');
                     self.extendSession();
-                    return;
-                }
+                };
+            }
 
-                if (target.id === 'session-logout-btn' || target.closest('#session-logout-btn')) {
+            if (logoutBtn) {
+                logoutBtn.onclick = function(e) {
                     e.preventDefault();
                     e.stopPropagation();
                     console.log('[SessionGuard] LOGOUT button clicked!');
                     self.logout();
-                    return;
-                }
-            };
-
-            dialog.addEventListener('click', this.boundDialogClickHandler, true);
+                };
+            }
 
             // Start countdown timer (every second)
             this.startCountdown();
@@ -336,13 +347,11 @@
         },
 
         hideWarning: function() {
+            console.log('[SessionGuard] hideWarning() called');
             this.stopCountdown();
 
             var dialog = document.getElementById('session-warning-dialog');
             if (dialog) {
-                if (this.boundDialogClickHandler) {
-                    dialog.removeEventListener('click', this.boundDialogClickHandler, true);
-                }
                 dialog.remove();
             }
             this.warningShown = false;
