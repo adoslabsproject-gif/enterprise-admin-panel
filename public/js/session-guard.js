@@ -4,11 +4,11 @@
  * Client-side session monitoring with:
  * - Heartbeat every 30 seconds to keep session alive
  * - Warning dialog 5 minutes before expiry
- * - Real-time countdown with requestAnimationFrame
+ * - Real-time countdown (every second)
  * - Auto-logout when session expires
  * - Activity tracking (mouse, keyboard, scroll)
  *
- * @version 2.0.0 - Enterprise Edition with real-time countdown
+ * @version 2.1.0 - Fixed button event handling
  */
 (function() {
     'use strict';
@@ -23,24 +23,24 @@
         lastActivity: Date.now(),
         warningShown: false,
         heartbeatTimer: null,
-        countdownRAF: null,        // requestAnimationFrame ID for countdown
+        countdownTimer: null,      // setInterval for countdown
         initialized: false,
 
         // Bound event handlers (for cleanup)
         boundActivityHandler: null,
         boundVisibilityHandler: null,
+        boundDialogClickHandler: null,
 
         init: function() {
-            // Prevent double initialization (memory leak protection)
+            // Prevent double initialization
             if (this.initialized) {
                 console.warn('[SessionGuard] Already initialized, skipping');
                 return;
             }
             this.initialized = true;
 
-            // Get admin base path from meta tag or infer from current URL
+            // Get admin base path from current URL
             this.basePath = this.getBasePath();
-
             console.log('[SessionGuard] Initialized with basePath:', this.basePath);
 
             // Start heartbeat
@@ -49,13 +49,13 @@
             // Track user activity
             this.trackActivity();
 
-            // Cleanup on page unload to prevent memory leaks
+            // Cleanup on page unload
             var self = this;
             window.addEventListener('beforeunload', function() {
                 self.destroy();
             }, { once: true });
 
-            // Pause when tab is hidden (save resources)
+            // Pause when tab is hidden
             this.boundVisibilityHandler = function() {
                 if (document.hidden) {
                     self.pauseTimers();
@@ -67,7 +67,6 @@
         },
 
         getBasePath: function() {
-            // Extract base path from current URL (e.g., /x-abc123)
             var path = window.location.pathname;
             var match = path.match(/^(\/x-[a-f0-9]+)/);
             return match ? match[1] : '';
@@ -75,11 +74,7 @@
 
         startHeartbeat: function() {
             var self = this;
-
-            // Initial heartbeat
             this.sendHeartbeat();
-
-            // Schedule regular heartbeats
             this.heartbeatTimer = setInterval(function() {
                 self.sendHeartbeat();
             }, this.heartbeatInterval);
@@ -107,10 +102,7 @@
                             console.error('[SessionGuard] Parse error:', e);
                         }
                     } else if (xhr.status === 401 || xhr.status === 403) {
-                        console.warn('[SessionGuard] Session expired (HTTP ' + xhr.status + ')');
                         self.handleSessionExpired();
-                    } else {
-                        console.error('[SessionGuard] Heartbeat failed with status:', xhr.status);
                     }
                 }
             };
@@ -124,7 +116,7 @@
                 return;
             }
 
-            // Convert expires_in (seconds) to absolute timestamp
+            // Convert expires_in to absolute timestamp
             this.expiresAt = Date.now() + (data.expires_in * 1000);
 
             if (data.should_warn && !this.warningShown) {
@@ -132,35 +124,25 @@
             }
         },
 
-        /**
-         * Get remaining seconds until session expires
-         */
         getRemainingSeconds: function() {
-            if (this.expiresAt === null) {
-                return null;
-            }
+            if (this.expiresAt === null) return null;
             return Math.max(0, Math.floor((this.expiresAt - Date.now()) / 1000));
         },
 
         trackActivity: function() {
             var self = this;
             var events = ['mousedown', 'keydown', 'scroll', 'touchstart'];
-
-            // Create a single bound handler for all events (memory efficient)
-            // Debounced to prevent excessive updates
             var lastUpdate = 0;
+
             this.boundActivityHandler = function() {
                 var now = Date.now();
-                // Debounce: update at most once per second
                 if (now - lastUpdate > 1000) {
                     self.lastActivity = now;
                     lastUpdate = now;
                 }
             };
 
-            // Store events for cleanup
             this.trackedEvents = events;
-
             events.forEach(function(event) {
                 document.addEventListener(event, self.boundActivityHandler, { passive: true });
             });
@@ -170,83 +152,77 @@
             var self = this;
             this.warningShown = true;
 
-            // Create warning dialog
+            // Remove existing dialog if any
+            var existing = document.getElementById('session-warning-dialog');
+            if (existing) existing.remove();
+
+            // Create dialog
             var dialog = document.createElement('div');
             dialog.id = 'session-warning-dialog';
             dialog.className = 'session-warning-overlay';
             dialog.innerHTML = this.getWarningHTML();
-
             document.body.appendChild(dialog);
 
-            // Add event listeners with proper binding
-            var extendBtn = document.getElementById('session-extend-btn');
-            var logoutBtn = document.getElementById('session-logout-btn');
+            // Use event delegation on the dialog container
+            this.boundDialogClickHandler = function(e) {
+                var target = e.target;
 
-            if (extendBtn) {
-                extendBtn.addEventListener('click', function(e) {
+                // Check if clicked element or parent is a button
+                if (target.id === 'session-extend-btn' || target.closest('#session-extend-btn')) {
                     e.preventDefault();
                     e.stopPropagation();
-                    console.log('[SessionGuard] Extend button clicked');
+                    console.log('[SessionGuard] EXTEND button clicked!');
                     self.extendSession();
-                });
-            }
-
-            if (logoutBtn) {
-                logoutBtn.addEventListener('click', function(e) {
-                    e.preventDefault();
-                    e.stopPropagation();
-                    console.log('[SessionGuard] Logout button clicked');
-                    self.logout();
-                });
-            }
-
-            // Start real-time countdown using requestAnimationFrame
-            this.startRealtimeCountdown();
-        },
-
-        /**
-         * Real-time countdown using requestAnimationFrame
-         * Updates every frame for smooth countdown
-         */
-        startRealtimeCountdown: function() {
-            var self = this;
-            var lastSecond = -1;
-
-            function tick() {
-                var remaining = self.getRemainingSeconds();
-
-                if (remaining === null) {
-                    self.countdownRAF = requestAnimationFrame(tick);
                     return;
                 }
 
-                // Session expired
+                if (target.id === 'session-logout-btn' || target.closest('#session-logout-btn')) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    console.log('[SessionGuard] LOGOUT button clicked!');
+                    self.logout();
+                    return;
+                }
+            };
+
+            dialog.addEventListener('click', this.boundDialogClickHandler, true);
+
+            // Start countdown timer (every second)
+            this.startCountdown();
+
+            console.log('[SessionGuard] Warning dialog shown, buttons attached');
+        },
+
+        startCountdown: function() {
+            var self = this;
+
+            // Clear existing timer
+            if (this.countdownTimer) {
+                clearInterval(this.countdownTimer);
+            }
+
+            // Update immediately
+            this.updateCountdown();
+
+            // Then every second
+            this.countdownTimer = setInterval(function() {
+                var remaining = self.getRemainingSeconds();
+
+                if (remaining === null) return;
+
                 if (remaining <= 0) {
                     self.handleSessionExpired();
                     return;
                 }
 
-                // Update display only when second changes (avoid unnecessary DOM updates)
-                if (remaining !== lastSecond) {
-                    lastSecond = remaining;
-                    self.updateCountdown(remaining);
-                }
-
-                // Continue animation loop
-                self.countdownRAF = requestAnimationFrame(tick);
-            }
-
-            // Start the animation loop
-            this.countdownRAF = requestAnimationFrame(tick);
+                self.updateCountdown();
+            }, 1000);
         },
 
-        /**
-         * Stop the real-time countdown
-         */
-        stopRealtimeCountdown: function() {
-            if (this.countdownRAF) {
-                cancelAnimationFrame(this.countdownRAF);
-                this.countdownRAF = null;
+        stopCountdown: function() {
+            if (this.countdownTimer) {
+                clearInterval(this.countdownTimer);
+                this.countdownTimer = null;
             }
         },
 
@@ -274,15 +250,18 @@
             return String(minutes).padStart(2, '0') + ':' + String(seconds).padStart(2, '0');
         },
 
-        updateCountdown: function(secondsRemaining) {
+        updateCountdown: function() {
+            var remaining = this.getRemainingSeconds();
+            if (remaining === null) return;
+
             var countdown = document.getElementById('session-countdown');
             if (countdown) {
-                var minutes = Math.floor(secondsRemaining / 60);
-                var seconds = secondsRemaining % 60;
+                var minutes = Math.floor(remaining / 60);
+                var seconds = remaining % 60;
                 countdown.textContent = this.formatTime(minutes, seconds);
 
                 // Add urgency class when under 1 minute
-                if (secondsRemaining < 60) {
+                if (remaining < 60) {
                     countdown.classList.add('session-warning-countdown--urgent');
                 }
             }
@@ -290,23 +269,23 @@
 
         extendSession: function() {
             var self = this;
-            var xhr = new XMLHttpRequest();
             var url = this.basePath + '/api/session/extend';
 
             console.log('[SessionGuard] Extending session via:', url);
 
-            // Disable button to prevent double-clicks
+            // Disable button
             var extendBtn = document.getElementById('session-extend-btn');
             if (extendBtn) {
                 extendBtn.disabled = true;
                 extendBtn.textContent = 'Extending...';
             }
 
+            var xhr = new XMLHttpRequest();
             xhr.open('POST', url, true);
             xhr.setRequestHeader('Accept', 'application/json');
             xhr.setRequestHeader('Content-Type', 'application/x-www-form-urlencoded');
 
-            // Add CSRF token if available
+            // Add CSRF token
             var csrfMeta = document.querySelector('meta[name="csrf-token"]');
             if (csrfMeta) {
                 xhr.setRequestHeader('X-CSRF-Token', csrfMeta.content);
@@ -319,82 +298,71 @@
                     if (xhr.status === 200) {
                         try {
                             var data = JSON.parse(xhr.responseText);
-                            console.log('[SessionGuard] Session extended:', data);
-
                             if (data.success) {
-                                // Update expiration time
+                                console.log('[SessionGuard] Session extended successfully!');
                                 self.expiresAt = Date.now() + (data.expires_in * 1000);
                                 self.hideWarning();
                             } else {
                                 console.error('[SessionGuard] Extend failed:', data.message);
-                                // Re-enable button on failure
-                                if (extendBtn) {
-                                    extendBtn.disabled = false;
-                                    extendBtn.textContent = 'Stay Logged In';
-                                }
+                                self.resetExtendButton();
                             }
                         } catch (e) {
                             console.error('[SessionGuard] Parse error:', e);
-                            if (extendBtn) {
-                                extendBtn.disabled = false;
-                                extendBtn.textContent = 'Stay Logged In';
-                            }
+                            self.resetExtendButton();
                         }
                     } else if (xhr.status === 401 || xhr.status === 403) {
-                        console.warn('[SessionGuard] Session expired during extend');
                         self.handleSessionExpired();
                     } else {
                         console.error('[SessionGuard] Extend failed with status:', xhr.status);
-                        // Re-enable button on failure
-                        if (extendBtn) {
-                            extendBtn.disabled = false;
-                            extendBtn.textContent = 'Stay Logged In';
-                        }
+                        self.resetExtendButton();
                     }
                 }
             };
 
             xhr.onerror = function() {
-                console.error('[SessionGuard] Network error during extend');
-                if (extendBtn) {
-                    extendBtn.disabled = false;
-                    extendBtn.textContent = 'Stay Logged In';
-                }
+                console.error('[SessionGuard] Network error');
+                self.resetExtendButton();
             };
 
             xhr.send('');
         },
 
+        resetExtendButton: function() {
+            var extendBtn = document.getElementById('session-extend-btn');
+            if (extendBtn) {
+                extendBtn.disabled = false;
+                extendBtn.textContent = 'Stay Logged In';
+            }
+        },
+
         hideWarning: function() {
-            // Stop countdown first
-            this.stopRealtimeCountdown();
+            this.stopCountdown();
 
             var dialog = document.getElementById('session-warning-dialog');
             if (dialog) {
+                if (this.boundDialogClickHandler) {
+                    dialog.removeEventListener('click', this.boundDialogClickHandler, true);
+                }
                 dialog.remove();
             }
             this.warningShown = false;
+            console.log('[SessionGuard] Warning hidden');
         },
 
         handleSessionExpired: function() {
-            // Stop all timers
-            this.stopRealtimeCountdown();
+            this.stopCountdown();
             if (this.heartbeatTimer) {
                 clearInterval(this.heartbeatTimer);
                 this.heartbeatTimer = null;
             }
-
-            // Redirect to login
             window.location.href = this.basePath + '/login?expired=1';
         },
 
         logout: function() {
-            // Create and submit logout form
             var form = document.createElement('form');
             form.method = 'POST';
             form.action = this.basePath + '/logout';
 
-            // Add CSRF token if available
             var csrfMeta = document.querySelector('meta[name="csrf-token"]');
             if (csrfMeta) {
                 var csrfInput = document.createElement('input');
@@ -408,54 +376,38 @@
             form.submit();
         },
 
-        /**
-         * Pause timers (when tab is hidden)
-         */
         pauseTimers: function() {
             if (this.heartbeatTimer) {
                 clearInterval(this.heartbeatTimer);
                 this.heartbeatTimer = null;
             }
-            this.stopRealtimeCountdown();
-            console.log('[SessionGuard] Timers paused (tab hidden)');
+            this.stopCountdown();
+            console.log('[SessionGuard] Timers paused');
         },
 
-        /**
-         * Resume timers (when tab becomes visible)
-         */
         resumeTimers: function() {
             var self = this;
-
-            // Send immediate heartbeat to sync state
             this.sendHeartbeat();
 
-            // Restart heartbeat timer
             if (!this.heartbeatTimer) {
                 this.heartbeatTimer = setInterval(function() {
                     self.sendHeartbeat();
                 }, this.heartbeatInterval);
             }
 
-            // Restart countdown if warning is shown
-            if (this.warningShown && !this.countdownRAF) {
-                this.startRealtimeCountdown();
+            if (this.warningShown && !this.countdownTimer) {
+                this.startCountdown();
             }
-
-            console.log('[SessionGuard] Timers resumed (tab visible)');
+            console.log('[SessionGuard] Timers resumed');
         },
 
-        /**
-         * Cleanup all resources (prevents memory leaks)
-         */
         destroy: function() {
-            // Clear all timers
             if (this.heartbeatTimer) {
                 clearInterval(this.heartbeatTimer);
                 this.heartbeatTimer = null;
             }
-            this.stopRealtimeCountdown();
+            this.stopCountdown();
 
-            // Remove event listeners
             var self = this;
             if (this.boundActivityHandler && this.trackedEvents) {
                 this.trackedEvents.forEach(function(event) {
@@ -467,9 +419,7 @@
                 document.removeEventListener('visibilitychange', this.boundVisibilityHandler);
             }
 
-            // Remove warning dialog if present
             this.hideWarning();
-
             this.initialized = false;
             console.log('[SessionGuard] Destroyed');
         }
@@ -484,6 +434,5 @@
         SessionGuard.init();
     }
 
-    // Expose globally for debugging
     window.SessionGuard = SessionGuard;
 })();
