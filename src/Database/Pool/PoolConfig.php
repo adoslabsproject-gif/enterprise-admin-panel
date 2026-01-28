@@ -244,7 +244,11 @@ final class PoolConfig
     }
 
     /**
-     * Build PostgreSQL DSN with SSL support
+     * Build PostgreSQL DSN with SSL and TCP keepalive support
+     *
+     * TCP keepalives prevent "server closed the connection" errors
+     * when connections sit idle behind firewalls/NAT or when
+     * PostgreSQL's idle_session_timeout is configured.
      */
     private function buildPgsqlDsn(): string
     {
@@ -254,6 +258,16 @@ final class PoolConfig
             $this->port,
             $this->database
         );
+
+        // Connection timeout (5 seconds default)
+        $dsn .= ';connect_timeout=5';
+
+        // TCP keepalives - prevent idle connection closures
+        // keepalives=1 enables TCP keepalives
+        // keepalives_idle=30 sends first keepalive after 30s idle
+        // keepalives_interval=10 sends keepalive every 10s after first
+        // keepalives_count=3 closes connection after 3 failed keepalives
+        $dsn .= ';keepalives=1;keepalives_idle=30;keepalives_interval=10;keepalives_count=3';
 
         // PostgreSQL SSL is configured via DSN parameters
         if ($this->sslEnabled) {

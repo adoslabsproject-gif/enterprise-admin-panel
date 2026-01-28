@@ -239,27 +239,55 @@ final class DatabasePool
 
     /**
      * Warm the pool with minimum connections
+     *
+     * ENTERPRISE: Uses exponential backoff for retries during warm-up.
+     * This handles transient database unavailability during container startup.
      */
     public function warmPool(): void
     {
         $min = $this->config->getMinConnections();
+        $maxRetries = 3;
+        $baseDelayMs = 500;
 
         for ($i = count($this->pool); $i < $min; $i++) {
-            try {
-                $this->createConnection();
-            } catch (PDOException $e) {
+            $lastError = null;
+
+            for ($retry = 0; $retry <= $maxRetries; $retry++) {
+                try {
+                    $this->createConnection();
+                    $lastError = null;
+                    break; // Success - exit retry loop
+                } catch (PDOException $e) {
+                    $lastError = $e;
+
+                    // Don't retry auth errors
+                    $msg = strtolower($e->getMessage());
+                    if (str_contains($msg, 'access denied') || str_contains($msg, 'authentication')) {
+                        break;
+                    }
+
+                    // Exponential backoff with jitter
+                    if ($retry < $maxRetries) {
+                        $delayMs = $baseDelayMs * (2 ** $retry) + random_int(0, 100);
+                        usleep($delayMs * 1000);
+                    }
+                }
+            }
+
+            if ($lastError !== null) {
                 // Log but don't fail - pool can grow on demand
-                error_log("[DB Pool] Warm-up failed: " . $e->getMessage());
+                error_log("[DB Pool] Warm-up failed after {$maxRetries} retries: " . $lastError->getMessage());
 
                 // Security/infrastructure log: database connection failure during warmup
                 Logger::channel('database')->error('Database pool warm-up failed', [
                     'host' => $this->config->getHost(),
                     'database' => $this->config->getDatabase(),
                     'driver' => $this->config->getDriver(),
-                    'error' => $e->getMessage(),
-                    'error_code' => $e->getCode(),
+                    'error' => $lastError->getMessage(),
+                    'error_code' => $lastError->getCode(),
                     'connections_created' => $i,
                     'target_connections' => $min,
+                    'retries_attempted' => $maxRetries,
                 ]);
 
                 break;
