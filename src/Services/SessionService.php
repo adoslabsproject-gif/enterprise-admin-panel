@@ -91,7 +91,7 @@ final class SessionService
         ]);
 
         // Strategic security log: new session created
-        Logger::channel('security')->info( 'Session created', [
+        Logger::channel('security')->warning( 'Session created', [
             'session_id_prefix' => substr($sessionId, 0, 16),
             'user_id' => $userId,
             'ip' => $ipAddress,
@@ -185,7 +185,7 @@ final class SessionService
                 ]);
 
                 // Strategic log: session expired (monitor for unusual patterns)
-                Logger::channel('security')->info( 'Session expired due to inactivity', [
+                Logger::channel('security')->warning( 'Session expired due to inactivity', [
                     'session_id_prefix' => substr($sessionId, 0, 16),
                     'user_id' => $session['user_id'] ?? null,
                     'last_activity' => $lastActivity->format('Y-m-d H:i:s'),
@@ -272,7 +272,7 @@ final class SessionService
         ]);
 
         // Strategic security log: session destroyed
-        Logger::channel('security')->info( 'Session destroyed', [
+        Logger::channel('security')->warning( 'Session destroyed', [
             'session_id_prefix' => substr($sessionId, 0, 16),
         ]);
 

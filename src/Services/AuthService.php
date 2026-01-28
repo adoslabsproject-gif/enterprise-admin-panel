@@ -206,6 +206,14 @@ final class AuthService
             // Determine 2FA method
             $method = $user['two_factor_method'] ?? 'totp';
 
+            // Log: credentials verified, awaiting 2FA
+            Logger::channel('security')->warning('Login credentials verified, awaiting 2FA', [
+                'user_id' => $user['id'],
+                'email' => $user['email'],
+                'ip' => $ipAddress,
+                '2fa_method' => $method,
+            ]);
+
             // For OTP-based methods (email, telegram, discord, slack), send the code now
             if ($method !== 'totp' && $this->twoFactorService !== null) {
                 $sendResult = $this->twoFactorService->sendCode($user['id'], $method);
@@ -216,17 +224,38 @@ final class AuthService
                         'error' => $sendResult['error'],
                     ], $ipAddress, $userAgent);
 
-                    // Still require 2FA but log the error
-                    $this->logger->error('Failed to send 2FA code', [
+                    // Log send failure to security (security event)
+                    Logger::channel('security')->error('2FA code send failed', [
                         'user_id' => $user['id'],
                         'method' => $method,
                         'error' => $sendResult['error'],
+                        'ip' => $ipAddress,
                     ]);
+
+                    // If email method, also log to email channel
+                    if ($method === 'email') {
+                        Logger::channel('email')->error('2FA email send failed', [
+                            'user_id' => $user['id'],
+                            'email' => $user['email'],
+                            'error' => $sendResult['error'],
+                        ]);
+                    }
                 } else {
-                    $this->logger->info('2FA code sent', [
+                    // Log to security (security event tracking)
+                    Logger::channel('security')->warning('2FA code sent successfully', [
                         'user_id' => $user['id'],
                         'method' => $method,
+                        'ip' => $ipAddress,
                     ]);
+
+                    // If email method, log to email channel
+                    if ($method === 'email') {
+                        Logger::channel('email')->warning('2FA verification email sent', [
+                            'user_id' => $user['id'],
+                            'email' => $user['email'],
+                            'type' => '2fa_verification',
+                        ]);
+                    }
                 }
             }
 
@@ -362,7 +391,7 @@ final class AuthService
         ], $ipAddress, $userAgent);
 
         // Strategic security log for successful login
-        Logger::channel('security')->info( 'User logged in successfully', [
+        Logger::channel('security')->warning( 'User logged in successfully', [
             'user_id' => $user['id'],
             'email' => $user['email'],
             'ip' => $ipAddress,
@@ -450,7 +479,7 @@ final class AuthService
             ]);
         } else {
             // Direct session creation (e.g., API token, SSO)
-            Logger::channel('security')->info( 'User session created directly', [
+            Logger::channel('security')->warning( 'User session created directly', [
                 'user_id' => $userId,
                 'email' => $user['email'],
                 'ip' => $ipAddress,
@@ -485,7 +514,7 @@ final class AuthService
         $this->auditService->log('logout', $userId, [], $ipAddress, $userAgent);
 
         // Strategic security log for logout
-        Logger::channel('security')->info( 'User logged out', [
+        Logger::channel('security')->warning( 'User logged out', [
             'user_id' => $userId,
             'ip' => $ipAddress,
             'session_id' => substr($sessionId, 0, 16) . '...',
@@ -799,7 +828,7 @@ final class AuthService
         );
 
         // Strategic log: password rehashed (security upgrade)
-        Logger::channel('security')->info( 'Password rehashed (algo upgrade)', [
+        Logger::channel('security')->warning( 'Password rehashed (algo upgrade)', [
             'user_id' => $userId,
             'method' => 'updatePasswordHash',
         ]);

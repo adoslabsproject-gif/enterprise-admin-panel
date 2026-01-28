@@ -31,6 +31,11 @@ CREATE TABLE IF NOT EXISTS log_channels (
     -- e.g., {"telegram_level": "error", "file_rotation": "daily"}
     config JSONB NOT NULL DEFAULT '{}'::JSONB,
 
+    -- Auto-reset feature: automatically resets debug-level channels to WARNING
+    -- after a configurable timeout (default 8 hours) for security
+    auto_reset_enabled BOOLEAN NOT NULL DEFAULT TRUE,
+    auto_reset_at TIMESTAMP,
+
     -- Statistics (updated by triggers or application)
     log_count BIGINT NOT NULL DEFAULT 0,
     last_log_at TIMESTAMP,
@@ -62,12 +67,12 @@ CREATE TRIGGER trg_log_channels_updated_at
     EXECUTE FUNCTION update_log_channels_updated_at();
 
 -- Insert default channels
--- IMPORTANT: Only 'security' channel logs to database for audit compliance
+-- IMPORTANT: Only 'security' and 'error' channels log to database for audit compliance
 -- All other channels log to file only to prevent database bloat
--- DEFAULT LEVEL: warning (safe) - only security/audit use info for comprehensive tracking
+-- DEFAULT LEVEL: warning (safe) for all channels
 INSERT INTO log_channels (channel, min_level, enabled, description, handlers) VALUES
     ('default', 'warning', TRUE, 'Default application logs', '["file"]'),
-    ('security', 'info', TRUE, 'Security events, authentication, authorization', '["file", "database"]'),
+    ('security', 'warning', TRUE, 'Security events, authentication, authorization', '["file", "database"]'),
     ('api', 'warning', TRUE, 'API requests and responses', '["file"]'),
     ('database', 'warning', TRUE, 'Database queries, slow queries, errors', '["file"]'),
     ('email', 'warning', TRUE, 'Email sending, SMTP errors', '["file"]'),
@@ -82,8 +87,11 @@ CREATE TABLE IF NOT EXISTS log_telegram_config (
     -- Whether Telegram notifications are enabled
     enabled BOOLEAN NOT NULL DEFAULT FALSE,
 
-    -- Telegram bot token
-    bot_token VARCHAR(255),
+    -- Telegram bot token (encrypted with AES-256-GCM if APP_KEY is set)
+    bot_token VARCHAR(512),
+
+    -- Whether bot_token is stored encrypted
+    is_encrypted BOOLEAN NOT NULL DEFAULT FALSE,
 
     -- Chat ID to send notifications to
     chat_id VARCHAR(100),
@@ -118,3 +126,6 @@ COMMENT ON TABLE log_channels IS 'PSR-3 Logger channel configuration. Used by sh
 COMMENT ON TABLE log_telegram_config IS 'Telegram notification settings for PSR-3 Logger. Separate min_level allows channel=warning but telegram=error.';
 COMMENT ON COLUMN log_channels.min_level IS 'Minimum PSR-3 level: debug < info < notice < warning < error < critical < alert < emergency';
 COMMENT ON COLUMN log_channels.handlers IS 'JSON array of handler names: file, database, telegram, redis, webhook';
+COMMENT ON COLUMN log_channels.auto_reset_enabled IS 'Whether auto-reset to WARNING is enabled when level < WARNING';
+COMMENT ON COLUMN log_channels.auto_reset_at IS 'Timestamp when channel will auto-reset to WARNING';
+COMMENT ON COLUMN log_telegram_config.is_encrypted IS 'Whether bot_token is encrypted with AES-256-GCM';

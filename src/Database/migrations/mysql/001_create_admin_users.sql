@@ -43,12 +43,22 @@ CREATE TABLE IF NOT EXISTS admin_users (
     -- Two-factor authentication (ENABLED BY DEFAULT for security)
     two_factor_secret VARCHAR(255) DEFAULT NULL,
     two_factor_enabled TINYINT(1) DEFAULT 1,
-    two_factor_channel VARCHAR(20) DEFAULT 'email',
+    two_factor_method VARCHAR(20) DEFAULT 'email',
     two_factor_recovery_codes JSON DEFAULT NULL,
 
     -- Password reset
     password_reset_token VARCHAR(64) DEFAULT NULL,
     password_reset_expires_at TIMESTAMP NULL DEFAULT NULL,
+
+    -- CLI token for secure URL retrieval
+    -- Token is HMAC-SHA256(user_id + password + timestamp, master_secret)
+    -- Only the SHA-256 HASH is stored (not the token itself)
+    cli_token_hash VARCHAR(128) DEFAULT NULL,
+    cli_token_generated_at TIMESTAMP NULL DEFAULT NULL,
+    cli_token_generation_count INT UNSIGNED DEFAULT 0,
+
+    -- Master admin flag (only one per installation)
+    is_master TINYINT(1) DEFAULT 0,
 
     -- Timestamps
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -62,6 +72,9 @@ CREATE TABLE IF NOT EXISTS admin_users (
     INDEX idx_admin_users_role (role),
     INDEX idx_admin_users_active (is_active),
     INDEX idx_admin_users_locked (locked_until),
-    INDEX idx_admin_users_reset_token (password_reset_token)
+    INDEX idx_admin_users_reset_token (password_reset_token),
+    INDEX idx_admin_users_cli_token (cli_token_hash),
+    INDEX idx_admin_users_is_master (is_master),
+    INDEX idx_admin_users_2fa_method (two_factor_method)
 
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

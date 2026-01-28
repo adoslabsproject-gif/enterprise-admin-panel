@@ -71,12 +71,21 @@ final class RecoveryService
         $user = $users[0] ?? null;
 
         if (!$user) {
+            Logger::channel('security')->warning('Recovery token request for unknown user', [
+                'user_id' => $userId,
+                'ip' => $createdByIp,
+            ]);
             return ['success' => false, 'error' => 'User not found'];
         }
 
         if (!$user['is_master']) {
             $this->auditService->log('recovery_token_denied', $userId, [
                 'reason' => 'not_master_admin',
+                'ip' => $createdByIp,
+            ]);
+            Logger::channel('security')->warning('Recovery token denied - not master admin', [
+                'user_id' => $userId,
+                'email' => $user['email'],
                 'ip' => $createdByIp,
             ]);
             return ['success' => false, 'error' => 'Only master admin can generate recovery tokens'];
@@ -124,10 +133,12 @@ final class RecoveryService
             'ip' => $createdByIp,
         ]);
 
-        $this->logger->info('Recovery token generated', [
+        Logger::channel('security')->warning('Recovery token generated', [
             'user_id' => $userId,
             'token_id' => $tokenId,
             'delivery_method' => $deliveryMethod,
+            'expires_at' => $expiresAt->format('Y-m-d H:i:s'),
+            'ip' => $createdByIp,
         ]);
 
         return [
@@ -231,10 +242,15 @@ final class RecoveryService
 
             return ['success' => true, 'delivered_to' => $deliveredTo];
         } catch (\Exception $e) {
-            $this->logger->error('Failed to send recovery token', [
+            Logger::channel('error')->error('Failed to send recovery token', [
                 'token_id' => $tokenId,
                 'method' => $method,
                 'error' => $e->getMessage(),
+            ]);
+            Logger::channel('security')->error('Recovery token send failed', [
+                'token_id' => $tokenId,
+                'method' => $method,
+                'user_id' => $token['user_id'],
             ]);
             return ['success' => false, 'error' => 'Failed to send token: ' . $e->getMessage()];
         }
@@ -282,9 +298,10 @@ final class RecoveryService
                     'user_agent' => $userAgent,
                 ]);
 
-                $this->logger->info('Recovery token used successfully', [
+                Logger::channel('security')->warning('Recovery token used - 2FA bypass', [
                     'user_id' => $token['user_id'],
                     'token_id' => $token['id'],
+                    'email' => $token['email'],
                     'ip' => $ipAddress,
                 ]);
 
@@ -302,6 +319,11 @@ final class RecoveryService
             'reason' => 'invalid_or_expired_token',
             'ip' => $ipAddress,
             'user_agent' => $userAgent,
+        ]);
+
+        Logger::channel('security')->warning('Recovery token verification failed', [
+            'reason' => 'invalid_or_expired_token',
+            'ip' => $ipAddress,
         ]);
 
         return ['success' => false, 'error' => 'Invalid or expired recovery token'];

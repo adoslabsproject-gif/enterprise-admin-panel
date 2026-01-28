@@ -58,6 +58,9 @@ final class Bootstrap
         // Load environment
         self::loadEnvironment();
 
+        // Set timezone from environment or default
+        self::configureTimezone();
+
         // Register services
         self::registerDatabasePool($config['database'] ?? []);
         self::registerCacheManager($config['cache'] ?? []);
@@ -130,6 +133,31 @@ final class Bootstrap
 
         // Last resort: 4 levels up from src/ (src -> package -> ados-labs -> vendor -> project)
         return dirname(__DIR__, 4);
+    }
+
+    /**
+     * Configure timezone from environment or default
+     */
+    private static function configureTimezone(): void
+    {
+        $timezone = $_ENV['APP_TIMEZONE'] ?? getenv('APP_TIMEZONE') ?: null;
+
+        if ($timezone === null) {
+            $iniTimezone = ini_get('date.timezone');
+            if ($iniTimezone) {
+                $timezone = $iniTimezone;
+            }
+        }
+
+        if ($timezone === null) {
+            $timezone = 'Europe/Rome';
+        }
+
+        try {
+            date_default_timezone_set($timezone);
+        } catch (\Throwable $e) {
+            date_default_timezone_set('Europe/Rome');
+        }
     }
 
     /**
@@ -305,6 +333,11 @@ final class Bootstrap
     private static function registerLoggerFacade(): void
     {
         $logDir = self::$basePath . '/storage/logs';
+
+        // Ensure logs directory exists
+        if (!is_dir($logDir)) {
+            @mkdir($logDir, 0755, true);
+        }
 
         LoggerFacade::setLoggerFactory(function (string $channel) use ($logDir): \AdosLabs\EnterprisePSR3Logger\Logger {
             return LoggerFactory::minimal($channel, "{$logDir}/{$channel}-" . date('Y-m-d') . '.log');

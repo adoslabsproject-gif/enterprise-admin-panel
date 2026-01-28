@@ -31,6 +31,11 @@ CREATE TABLE IF NOT EXISTS log_channels (
     -- e.g., {"telegram_level": "error", "file_rotation": "daily"}
     config JSON NOT NULL DEFAULT ('{}'),
 
+    -- Auto-reset feature: automatically resets debug-level channels to WARNING
+    -- after a configurable timeout (default 8 hours) for security
+    auto_reset_enabled TINYINT(1) NOT NULL DEFAULT 1,
+    auto_reset_at DATETIME NULL,
+
     -- Statistics (updated by triggers or application)
     log_count BIGINT UNSIGNED NOT NULL DEFAULT 0,
     last_log_at TIMESTAMP NULL,
@@ -48,11 +53,11 @@ CREATE TABLE IF NOT EXISTS log_channels (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- Insert default channels
--- IMPORTANT: Only 'security' channel logs to database for audit compliance
+-- IMPORTANT: Only 'security' and 'error' channels log to database for audit compliance
 -- All other channels log to file only to prevent database bloat
 INSERT IGNORE INTO log_channels (channel, min_level, enabled, description, handlers) VALUES
     ('default', 'warning', 1, 'Default application logs', '["file"]'),
-    ('security', 'info', 1, 'Security events, authentication, authorization', '["file", "database"]'),
+    ('security', 'warning', 1, 'Security events, authentication, authorization', '["file", "database"]'),
     ('api', 'warning', 1, 'API requests and responses', '["file"]'),
     ('database', 'warning', 1, 'Database queries, slow queries, errors', '["file"]'),
     ('email', 'warning', 1, 'Email sending, SMTP errors', '["file"]'),
@@ -66,8 +71,11 @@ CREATE TABLE IF NOT EXISTS log_telegram_config (
     -- Whether Telegram notifications are enabled
     enabled TINYINT(1) NOT NULL DEFAULT 0,
 
-    -- Telegram bot token
-    bot_token VARCHAR(255) NULL,
+    -- Telegram bot token (encrypted with AES-256-GCM if APP_KEY is set)
+    bot_token VARCHAR(512) NULL,
+
+    -- Whether bot_token is stored encrypted
+    is_encrypted TINYINT(1) NOT NULL DEFAULT 0,
 
     -- Chat ID to send notifications to
     chat_id VARCHAR(100) NULL,
