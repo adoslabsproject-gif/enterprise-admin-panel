@@ -16,7 +16,7 @@
     var SessionGuard = {
         // Configuration
         heartbeatInterval: 30000,  // 30 seconds
-        warningThreshold: 3600,    // 60 minutes in seconds (TEST - change back to 300 for production)
+        warningThreshold: 300,     // 5 minutes in seconds
 
         // State
         expiresAt: null,           // Absolute timestamp when session expires
