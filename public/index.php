@@ -609,33 +609,54 @@ try {
         $sessionId = $getSessionCookie() ?? null;
 
         if ($sessionId === null) {
+            Logger::channel('security')->warning('Session extend failed - no session cookie');
             $response = Response::json([
                 'success' => false,
                 'message' => 'No session',
             ], 401);
         } else {
-            $extended = $sessionService->extend($sessionId);
+            try {
+                $extended = $sessionService->extend($sessionId);
 
-            if ($extended) {
-                // Get updated session info
-                $session = $sessionService->get($sessionId);
-                $expiresAt = new DateTimeImmutable($session['expires_at']);
-                $now = new DateTimeImmutable();
-                $expiresInSeconds = max(0, $expiresAt->getTimestamp() - $now->getTimestamp());
+                if ($extended) {
+                    // Get updated session info
+                    $session = $sessionService->get($sessionId);
+                    $expiresAt = new DateTimeImmutable($session['expires_at']);
+                    $now = new DateTimeImmutable();
+                    $expiresInSeconds = max(0, $expiresAt->getTimestamp() - $now->getTimestamp());
 
-                $response = Response::json([
-                    'success' => true,
-                    'active' => true,
-                    'expires_in' => $expiresInSeconds,
-                    'should_warn' => false,
-                    'extension_count' => $session['payload']['extension_count'] ?? 0,
-                    'message' => 'Session extended',
+                    Logger::channel('security')->info('Session extended successfully', [
+                        'session_id_prefix' => substr($sessionId, 0, 16),
+                        'expires_in' => $expiresInSeconds,
+                        'extension_count' => $session['payload']['extension_count'] ?? 0,
+                    ]);
+
+                    $response = Response::json([
+                        'success' => true,
+                        'active' => true,
+                        'expires_in' => $expiresInSeconds,
+                        'should_warn' => false,
+                        'extension_count' => $session['payload']['extension_count'] ?? 0,
+                        'message' => 'Session extended',
+                    ]);
+                } else {
+                    Logger::channel('security')->warning('Session extend failed - session not found', [
+                        'session_id_prefix' => substr($sessionId, 0, 16),
+                    ]);
+                    $response = Response::json([
+                        'success' => false,
+                        'message' => 'Session not found',
+                    ], 401);
+                }
+            } catch (\Throwable $e) {
+                Logger::channel('security')->error('Session extend exception', [
+                    'error' => $e->getMessage(),
+                    'session_id_prefix' => substr($sessionId, 0, 16),
                 ]);
-            } else {
                 $response = Response::json([
                     'success' => false,
-                    'message' => 'Session not found',
-                ], 401);
+                    'message' => 'Error extending session',
+                ], 500);
             }
         }
     }

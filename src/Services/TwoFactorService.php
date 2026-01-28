@@ -308,10 +308,16 @@ final class TwoFactorService
      */
     public function enable(int $userId, string $method, ?string $verificationCode = null): bool
     {
+        $user = $this->getUser($userId);
+
         // For TOTP, verify the code first
         if ($method === self::METHOD_TOTP && $verificationCode !== null) {
             $result = $this->verifyCode($userId, $verificationCode, $method);
             if (!$result['success']) {
+                Logger::channel('security')->warning('2FA enable failed - invalid verification code', [
+                    'user_id' => $userId,
+                    'method' => $method,
+                ]);
                 return false;
             }
         }
@@ -324,6 +330,13 @@ final class TwoFactorService
         $this->auditService->log('2fa_enabled', $userId, ['method' => $method]);
         $this->logger->info('2FA enabled', ['user_id' => $userId, 'method' => $method]);
 
+        // Security log: 2FA enabled (important security event)
+        Logger::channel('security')->warning('2FA enabled', [
+            'user_id' => $userId,
+            'email' => $user['email'] ?? null,
+            'method' => $method,
+        ]);
+
         return true;
     }
 
@@ -335,12 +348,22 @@ final class TwoFactorService
         $user = $this->getUser($userId);
 
         if ($user === null) {
+            Logger::channel('security')->warning('2FA disable failed - user not found', [
+                'user_id' => $userId,
+            ]);
             return false;
         }
 
         // Require password confirmation
         if (!password_verify($password, $user['password_hash'])) {
             $this->auditService->log('2fa_disable_failed', $userId, ['reason' => 'invalid_password']);
+
+            // Security log: 2FA disable with wrong password (potential attack)
+            Logger::channel('security')->warning('2FA disable failed - invalid password', [
+                'user_id' => $userId,
+                'email' => $user['email'] ?? null,
+            ]);
+
             return false;
         }
 
@@ -351,6 +374,13 @@ final class TwoFactorService
 
         $this->auditService->log('2fa_disabled', $userId);
         $this->logger->info('2FA disabled', ['user_id' => $userId]);
+
+        // Security log: 2FA disabled (important security event)
+        Logger::channel('security')->warning('2FA disabled', [
+            'user_id' => $userId,
+            'email' => $user['email'] ?? null,
+            'previous_method' => $user['two_factor_method'] ?? 'unknown',
+        ]);
 
         return true;
     }

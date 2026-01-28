@@ -31,6 +31,7 @@ use AdosLabs\AdminPanel\Database\Pool\Exceptions\QueryValidationException;
 use AdosLabs\AdminPanel\Database\Pool\Redis\RedisStateManager;
 use AdosLabs\AdminPanel\Database\Pool\Redis\DistributedCircuitBreaker;
 use AdosLabs\AdminPanel\Database\Pool\Redis\DistributedMetricsCollector;
+use AdosLabs\EnterprisePSR3Logger\LoggerFacade as Logger;
 
 final class DatabasePool
 {
@@ -249,6 +250,18 @@ final class DatabasePool
             } catch (PDOException $e) {
                 // Log but don't fail - pool can grow on demand
                 error_log("[DB Pool] Warm-up failed: " . $e->getMessage());
+
+                // Security/infrastructure log: database connection failure during warmup
+                Logger::channel('database')->error('Database pool warm-up failed', [
+                    'host' => $this->config->getHost(),
+                    'database' => $this->config->getDatabase(),
+                    'driver' => $this->config->getDriver(),
+                    'error' => $e->getMessage(),
+                    'error_code' => $e->getCode(),
+                    'connections_created' => $i,
+                    'target_connections' => $min,
+                ]);
+
                 break;
             }
         }
@@ -340,6 +353,18 @@ final class DatabasePool
                     $circuitBreaker->recordFailure();
                     $this->connectionsFailed++;
                     $this->metricsCollector?->recordConnectionFailed();
+
+                    // Security/infrastructure log: database connection failure
+                    Logger::channel('database')->error('Database connection failed', [
+                        'host' => $this->config->getHost(),
+                        'database' => $this->config->getDatabase(),
+                        'driver' => $this->config->getDriver(),
+                        'error' => $e->getMessage(),
+                        'error_code' => $e->getCode(),
+                        'pool_size' => count($this->pool),
+                        'max_connections' => $this->config->getMaxConnections(),
+                    ]);
+
                     $retryResult = $this->retryConnection($e);
                     if ($retryResult !== null) {
                         throw $retryResult;
@@ -814,8 +839,27 @@ final class DatabasePool
                 $this->getCircuitBreaker()->recordFailure();
                 $this->connectionsFailed++;
                 $this->metricsCollector?->recordConnectionFailed();
+
+                // Log retry attempt failure
+                Logger::channel('database')->warning('Database connection retry failed', [
+                    'host' => $this->config->getHost(),
+                    'database' => $this->config->getDatabase(),
+                    'attempt' => $i,
+                    'max_attempts' => $attempts,
+                    'error' => $e->getMessage(),
+                ]);
             }
         }
+
+        // All retries exhausted - critical infrastructure failure
+        Logger::channel('database')->critical('Database connection failed after all retries', [
+            'host' => $this->config->getHost(),
+            'database' => $this->config->getDatabase(),
+            'driver' => $this->config->getDriver(),
+            'total_attempts' => $attempts,
+            'last_error' => $lastError->getMessage(),
+            'circuit_breaker_state' => $this->getCircuitBreaker()->getState(),
+        ]);
 
         return $lastError;
     }

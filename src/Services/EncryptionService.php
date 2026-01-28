@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace AdosLabs\AdminPanel\Services;
 
 use RuntimeException;
+use AdosLabs\EnterprisePSR3Logger\LoggerFacade as Logger;
 
 /**
  * Encryption Service
@@ -108,6 +109,12 @@ final class EncryptionService
         $combined = base64_decode($encrypted, true);
 
         if ($combined === false || strlen($combined) < 12 + self::TAG_LENGTH) {
+            // Security log: malformed encrypted data
+            Logger::channel('security')->warning('Decryption failed - malformed data', [
+                'input_length' => strlen($encrypted),
+                'decoded_length' => $combined !== false ? strlen($combined) : 0,
+                'expected_min_length' => 12 + self::TAG_LENGTH,
+            ]);
             return null;
         }
 
@@ -128,6 +135,11 @@ final class EncryptionService
 
         if ($plaintext === false) {
             // Decryption failed (wrong key, tampered data, etc.)
+            // Security log: potential key mismatch, data corruption, or tampering attempt
+            Logger::channel('security')->error('Decryption failed - authentication failed', [
+                'error' => openssl_error_string() ?: 'unknown',
+                'ciphertext_length' => strlen($ciphertext),
+            ]);
             return null;
         }
 

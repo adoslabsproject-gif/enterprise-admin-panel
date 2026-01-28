@@ -605,6 +605,9 @@ final class AuthService
     public function setup2FA(int $userId): array
     {
         if ($this->encryptionService === null) {
+            Logger::channel('security')->error('2FA setup failed - encryption service not configured', [
+                'user_id' => $userId,
+            ]);
             throw new RuntimeException('Encryption service not configured. Set APP_KEY in .env');
         }
 
@@ -631,6 +634,13 @@ final class AuthService
             [$encryptedSecret, json_encode($hashedCodes), $userId]
         );
 
+        // Security log: 2FA setup initiated (important security event)
+        Logger::channel('security')->warning('2FA setup initiated', [
+            'user_id' => $userId,
+            'email' => $user['email'] ?? null,
+            'recovery_codes_generated' => count($recoveryCodes),
+        ]);
+
         $this->logger->info('2FA setup initiated', ['user_id' => $userId]);
 
         return [
@@ -650,18 +660,30 @@ final class AuthService
         $user = $this->findUserById($userId);
 
         if ($user === null || empty($user['two_factor_secret'])) {
+            Logger::channel('security')->warning('2FA enable failed - user not found or no secret', [
+                'user_id' => $userId,
+                'ip' => $ipAddress,
+            ]);
             return false;
         }
 
         // Decrypt the stored secret
         $secret = $this->decryptTwoFactorSecret($user['two_factor_secret']);
         if ($secret === null) {
+            Logger::channel('security')->error('2FA enable failed - decryption error', [
+                'user_id' => $userId,
+                'ip' => $ipAddress,
+            ]);
             $this->logger->error('Failed to decrypt 2FA secret', ['user_id' => $userId]);
             return false;
         }
 
         // Verify code before enabling
         if (!$this->verifyTOTP($secret, $code)) {
+            Logger::channel('security')->warning('2FA enable failed - invalid TOTP code', [
+                'user_id' => $userId,
+                'ip' => $ipAddress,
+            ]);
             return false;
         }
 
@@ -671,6 +693,13 @@ final class AuthService
         );
 
         $this->auditService->log('2fa_enable', $userId, [], $ipAddress, $userAgent);
+
+        // Security log: 2FA successfully enabled (important security event)
+        Logger::channel('security')->warning('2FA enabled successfully', [
+            'user_id' => $userId,
+            'email' => $user['email'] ?? null,
+            'ip' => $ipAddress,
+        ]);
 
         return true;
     }
@@ -683,11 +712,20 @@ final class AuthService
         $user = $this->findUserById($userId);
 
         if ($user === null) {
+            Logger::channel('security')->warning('2FA disable failed - user not found', [
+                'user_id' => $userId,
+                'ip' => $ipAddress,
+            ]);
             return false;
         }
 
         // Require password confirmation
         if (!password_verify($password, $user['password_hash'])) {
+            Logger::channel('security')->warning('2FA disable failed - invalid password', [
+                'user_id' => $userId,
+                'email' => $user['email'] ?? null,
+                'ip' => $ipAddress,
+            ]);
             return false;
         }
 
@@ -697,6 +735,13 @@ final class AuthService
         );
 
         $this->auditService->log('2fa_disable', $userId, [], $ipAddress, $userAgent);
+
+        // Security log: 2FA disabled (important security event - potential compromise indicator)
+        Logger::channel('security')->warning('2FA disabled', [
+            'user_id' => $userId,
+            'email' => $user['email'] ?? null,
+            'ip' => $ipAddress,
+        ]);
 
         return true;
     }
@@ -1018,6 +1063,7 @@ final class AuthService
     {
         // If encryption service not available, assume plaintext (legacy)
         if ($this->encryptionService === null) {
+            Logger::channel('security')->warning('EncryptionService not available for 2FA - using plaintext fallback');
             $this->logger->warning('EncryptionService not available, using plaintext secret');
             return $storedSecret;
         }
@@ -1035,6 +1081,13 @@ final class AuthService
             $this->logger->info('Legacy plaintext 2FA secret detected');
             return $storedSecret;
         }
+
+        // Critical: decryption failed and not a valid plaintext secret
+        // This could indicate key rotation issue, data corruption, or attack
+        Logger::channel('security')->error('2FA secret decryption failed - potential key mismatch or data corruption', [
+            'secret_prefix' => substr($storedSecret, 0, 8) . '...',
+            'secret_length' => strlen($storedSecret),
+        ]);
 
         $this->logger->error('Failed to decrypt 2FA secret and not a valid plaintext secret');
         return null;
