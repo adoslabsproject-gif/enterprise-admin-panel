@@ -8,6 +8,7 @@ use AdosLabs\AdminPanel\Database\Pool\DatabasePool;
 use DateTimeImmutable;
 use Psr\Log\LoggerInterface;
 use Psr\Log\NullLogger;
+use AdosLabs\EnterprisePSR3Logger\LoggerFacade as Logger;
 
 /**
  * Emergency Recovery Token Service
@@ -109,6 +110,10 @@ final class RecoveryService
             $this->db->commit($connection);
         } catch (\Throwable $e) {
             $this->db->rollback($connection);
+            Logger::channel('error')->error( 'Recovery token generation failed', [
+                'user_id' => $userId,
+                'error' => $e->getMessage(),
+            ]);
             throw $e;
         }
 

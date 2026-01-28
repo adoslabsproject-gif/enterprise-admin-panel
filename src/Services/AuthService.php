@@ -13,6 +13,7 @@ use AdosLabs\AdminPanel\Services\TwoFactorService;
 use AdosLabs\AdminPanel\Services\NotificationService;
 use AdosLabs\AdminPanel\Services\ConfigService;
 use AdosLabs\AdminPanel\Services\EncryptionService;
+use AdosLabs\EnterprisePSR3Logger\LoggerFacade as Logger;
 
 /**
  * Enterprise Authentication Service
@@ -116,7 +117,7 @@ final class AuthService
             ], $ipAddress, $userAgent);
 
             // Strategic log: unknown email login attempt
-            log_warning('security', 'Login attempt with unknown email', [
+            Logger::channel('security')->warning( 'Login attempt with unknown email', [
                 'email' => $email,
                 'ip' => $ipAddress,
             ]);
@@ -136,7 +137,7 @@ final class AuthService
             ], $ipAddress, $userAgent);
 
             // Strategic log: locked account access attempt
-            log_warning('security', 'Login attempt on locked account', [
+            Logger::channel('security')->warning( 'Login attempt on locked account', [
                 'user_id' => $user['id'],
                 'email' => $email,
                 'ip' => $ipAddress,
@@ -158,7 +159,7 @@ final class AuthService
             ], $ipAddress, $userAgent);
 
             // Strategic log: disabled account access attempt
-            log_warning('security', 'Login attempt on disabled account', [
+            Logger::channel('security')->warning( 'Login attempt on disabled account', [
                 'user_id' => $user['id'],
                 'email' => $email,
                 'ip' => $ipAddress,
@@ -177,7 +178,7 @@ final class AuthService
             $this->recordFailedAttempt($user['id'], $ipAddress, $userAgent);
 
             // Strategic log: password failure
-            log_warning('security', 'Invalid password attempt', [
+            Logger::channel('security')->warning( 'Invalid password attempt', [
                 'user_id' => $user['id'],
                 'email' => $email,
                 'ip' => $ipAddress,
@@ -285,7 +286,7 @@ final class AuthService
                 ], $ipAddress, $userAgent);
 
                 // Strategic log: recovery code used (important security event)
-                log_warning('security', '2FA recovery code used', [
+                Logger::channel('security')->warning( '2FA recovery code used', [
                     'user_id' => $userId,
                     'ip' => $ipAddress,
                     'method' => $method,
@@ -316,7 +317,7 @@ final class AuthService
             ], $ipAddress, $userAgent);
 
             // Strategic log: recovery code used (TOTP path)
-            log_warning('security', '2FA recovery code used', [
+            Logger::channel('security')->warning( '2FA recovery code used', [
                 'user_id' => $userId,
                 'ip' => $ipAddress,
                 'method' => 'totp',
@@ -328,7 +329,7 @@ final class AuthService
         $this->auditService->log('2fa_failed', $userId, [], $ipAddress, $userAgent);
 
         // Strategic log: 2FA verification failed
-        log_warning('security', '2FA verification failed', [
+        Logger::channel('security')->warning( '2FA verification failed', [
             'user_id' => $userId,
             'ip' => $ipAddress,
             'method' => $method,
@@ -361,7 +362,7 @@ final class AuthService
         ], $ipAddress, $userAgent);
 
         // Strategic security log for successful login
-        log_info('security', 'User logged in successfully', [
+        Logger::channel('security')->info( 'User logged in successfully', [
             'user_id' => $user['id'],
             'email' => $user['email'],
             'ip' => $ipAddress,
@@ -441,7 +442,7 @@ final class AuthService
         // Strategic security logs
         if ($isRecoveryLogin) {
             // Recovery login bypasses 2FA - log as warning
-            log_warning('security', 'Recovery login used - 2FA bypassed', [
+            Logger::channel('security')->warning( 'Recovery login used - 2FA bypassed', [
                 'user_id' => $userId,
                 'email' => $user['email'],
                 'ip' => $ipAddress,
@@ -449,7 +450,7 @@ final class AuthService
             ]);
         } else {
             // Direct session creation (e.g., API token, SSO)
-            log_info('security', 'User session created directly', [
+            Logger::channel('security')->info( 'User session created directly', [
                 'user_id' => $userId,
                 'email' => $user['email'],
                 'ip' => $ipAddress,
@@ -484,7 +485,7 @@ final class AuthService
         $this->auditService->log('logout', $userId, [], $ipAddress, $userAgent);
 
         // Strategic security log for logout
-        log_info('security', 'User logged out', [
+        Logger::channel('security')->info( 'User logged out', [
             'user_id' => $userId,
             'ip' => $ipAddress,
             'session_id' => substr($sessionId, 0, 16) . '...',
@@ -532,7 +533,7 @@ final class AuthService
             ], $ipAddress, $userAgent);
 
             // Strategic log: password change with wrong current password
-            log_warning('security', 'Password change failed - invalid current password', [
+            Logger::channel('security')->warning( 'Password change failed - invalid current password', [
                 'user_id' => $userId,
                 'ip' => $ipAddress,
             ]);
@@ -547,7 +548,7 @@ final class AuthService
         );
 
         // Strategic log: password changed via changePassword()
-        log_warning('security', 'Password changed successfully', [
+        Logger::channel('security')->warning( 'Password changed successfully', [
             'user_id' => $userId,
             'ip' => $ipAddress,
             'method' => 'changePassword',
@@ -751,7 +752,7 @@ final class AuthService
             ]);
 
             // Strategic log: account locked (potential brute force)
-            log_error('security', 'Account locked due to excessive failed attempts', [
+            Logger::channel('security')->error( 'Account locked due to excessive failed attempts', [
                 'user_id' => $userId,
                 'ip' => $ipAddress,
                 'attempts' => $attempts,
@@ -798,7 +799,7 @@ final class AuthService
         );
 
         // Strategic log: password rehashed (security upgrade)
-        log_info('security', 'Password rehashed (algo upgrade)', [
+        Logger::channel('security')->info( 'Password rehashed (algo upgrade)', [
             'user_id' => $userId,
             'method' => 'updatePasswordHash',
         ]);
@@ -1136,7 +1137,7 @@ final class AuthService
             ], $ipAddress, $userAgent);
 
             // Strategic log: invalid reset token attempt
-            log_warning('security', 'Invalid password reset token used', [
+            Logger::channel('security')->warning( 'Invalid password reset token used', [
                 'ip' => $ipAddress,
                 'token_prefix' => substr($token, 0, 8) . '...',
             ]);
@@ -1156,7 +1157,7 @@ final class AuthService
         );
 
         // Strategic log: password reset via token
-        log_warning('security', 'Password reset via token', [
+        Logger::channel('security')->warning( 'Password reset via token', [
             'user_id' => $userId,
             'ip' => $ipAddress,
             'method' => 'resetPassword',

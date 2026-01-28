@@ -8,6 +8,7 @@ use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
 use Psr\Http\Server\MiddlewareInterface;
 use Psr\Http\Server\RequestHandlerInterface;
+use AdosLabs\EnterprisePSR3Logger\LoggerFacade as Logger;
 
 /**
  * Access Log Middleware - PHP-FPM Style Request Logging
@@ -118,7 +119,7 @@ final class AccessLogMiddleware implements MiddlewareInterface
         if ($this->isMinimalLogPath($path)) {
             // Only log errors for these paths
             if ($statusCode >= 400) {
-                log_warning('access', "{$method} {$path} {$statusCode}", [
+                Logger::channel('default')->warning( "{$method} {$path} {$statusCode}", [
                     'status' => $statusCode,
                     'duration_ms' => round($durationMs, 2),
                 ]);
@@ -146,13 +147,13 @@ final class AccessLogMiddleware implements MiddlewareInterface
         // Log based on level
         switch ($level) {
             case 'error':
-                log_error('access', $message, $context);
+                Logger::channel('default')->error( $message, $context);
                 break;
             case 'warning':
-                log_warning('access', $message, $context);
+                Logger::channel('default')->warning( $message, $context);
                 // Also log to performance channel if slow
                 if ($durationMs >= self::SLOW_REQUEST_THRESHOLD_MS) {
-                    log_warning('performance', 'Slow request detected', [
+                    Logger::channel('performance')->warning( 'Slow request detected', [
                         'method' => $method,
                         'uri' => $uri,
                         'duration_ms' => round($durationMs, 2),
@@ -161,7 +162,7 @@ final class AccessLogMiddleware implements MiddlewareInterface
                 }
                 break;
             default:
-                log_info('access', $message, $context);
+                Logger::channel('default')->info( $message, $context);
         }
     }
 

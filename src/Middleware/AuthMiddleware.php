@@ -10,6 +10,7 @@ use Psr\Http\Server\MiddlewareInterface;
 use Psr\Http\Server\RequestHandlerInterface;
 use AdosLabs\AdminPanel\Services\SessionService;
 use AdosLabs\AdminPanel\Http\Response;
+use AdosLabs\EnterprisePSR3Logger\LoggerFacade as Logger;
 
 /**
  * Enterprise Authentication Middleware
@@ -105,7 +106,7 @@ final class AuthMiddleware implements MiddlewareInterface
 
             if (!$this->hasPermission($user, $permission)) {
                 // Strategic log: permission denied (access control violation attempt)
-                log_warning('security', 'Permission denied for user', [
+                Logger::channel('security')->warning( 'Permission denied for user', [
                     'user_id' => $user['id'] ?? null,
                     'email' => $user['email'] ?? null,
                     'role' => $user['role'] ?? null,
@@ -140,7 +141,7 @@ final class AuthMiddleware implements MiddlewareInterface
 
             if (!in_array($user['role'], $roles, true)) {
                 // Strategic log: role-based access denial
-                log_warning('security', 'Role-based access denied', [
+                Logger::channel('security')->warning( 'Role-based access denied', [
                     'user_id' => $user['id'] ?? null,
                     'email' => $user['email'] ?? null,
                     'user_role' => $user['role'] ?? null,

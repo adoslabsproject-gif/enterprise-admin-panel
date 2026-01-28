@@ -7,6 +7,7 @@ namespace AdosLabs\AdminPanel\Services;
 use AdosLabs\AdminPanel\Database\Pool\DatabasePool;
 use Psr\Log\LoggerInterface;
 use Psr\Log\NullLogger;
+use AdosLabs\EnterprisePSR3Logger\LoggerFacade as Logger;
 
 /**
  * Enterprise Two-Factor Authentication Service
@@ -101,7 +102,7 @@ final class TwoFactorService
             ]);
 
             // Strategic log for 2FA code sent
-            log_info('email', '2FA code sent', [
+            Logger::channel('email')->info( '2FA code sent', [
                 'user_id' => $userId,
                 'method' => $method,
                 'channel' => $channel,
@@ -117,7 +118,7 @@ final class TwoFactorService
         }
 
         // Log failed 2FA send
-        log_warning('email', '2FA code send failed', [
+        Logger::channel('email')->warning( '2FA code send failed', [
             'user_id' => $userId,
             'method' => $method,
             'channel' => $channel,

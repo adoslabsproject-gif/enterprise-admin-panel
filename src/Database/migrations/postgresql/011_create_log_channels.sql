@@ -72,7 +72,7 @@ INSERT INTO log_channels (channel, min_level, enabled, description, handlers) VA
     ('database', 'warning', TRUE, 'Database queries, slow queries, errors', '["file"]'),
     ('email', 'warning', TRUE, 'Email sending, SMTP errors', '["file"]'),
     ('performance', 'warning', TRUE, 'Performance metrics, slow operations', '["file"]'),
-    ('audit', 'info', TRUE, 'Audit trail, user actions', '["file"]')
+    ('error', 'error', TRUE, 'Application errors, exceptions, failures', '["file", "database"]')
 ON CONFLICT (channel) DO NOTHING;
 
 -- Create table for Telegram notification configuration

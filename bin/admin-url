@@ -137,7 +137,11 @@ $host = $options['host'] ?? getenv('DB_HOST') ?: 'localhost';
 $port = $options['port'] ?? getenv('DB_PORT') ?: ($driver === 'mysql' ? '3306' : '5432');
 $database = $options['database'] ?? getenv('DB_DATABASE') ?: 'admin_panel';
 $username = $options['username'] ?? getenv('DB_USERNAME') ?: 'admin';
-$password = $options['password'] ?? getenv('DB_PASSWORD') ?: 'secret';
+$password = $options['password'] ?? getenv('DB_PASSWORD') ?: null;
+if ($password === null) {
+    fwrite(STDERR, "ERROR: DB_PASSWORD is required. Set via --password option or DB_PASSWORD env var.\n");
+    exit(1);
+}
 
 $dsn = match ($driver) {
     'mysql' => "mysql:host={$host};port={$port};dbname={$database};charset=utf8mb4",

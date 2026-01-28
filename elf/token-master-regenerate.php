@@ -105,7 +105,16 @@ $host = $_ENV['DB_HOST'] ?? 'localhost';
 $port = $_ENV['DB_PORT'] ?? ($driver === 'mysql' ? '3306' : '5432');
 $database = $_ENV['DB_DATABASE'] ?? 'admin_panel';
 $dbUsername = $_ENV['DB_USERNAME'] ?? 'admin';
-$dbPassword = $_ENV['DB_PASSWORD'] ?? 'secret';
+$dbPassword = $_ENV['DB_PASSWORD'] ?? null;
+if ($dbPassword === null) {
+    $error = 'DB_PASSWORD environment variable is required. Set it in your .env file.';
+    if ($jsonOutput) {
+        echo json_encode(['success' => false, 'error' => $error], JSON_PRETTY_PRINT) . "\n";
+    } else {
+        echo "ERROR: {$error}\n";
+    }
+    exit(1);
+}
 
 $dsn = match ($driver) {
     'pgsql', 'postgresql' => "pgsql:host={$host};port={$port};dbname={$database}",

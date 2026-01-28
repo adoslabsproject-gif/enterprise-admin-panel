@@ -22,6 +22,7 @@ use AdosLabs\AdminPanel\Cache\Drivers\CacheDriverInterface;
 use AdosLabs\AdminPanel\Cache\Drivers\RedisDriver;
 use AdosLabs\AdminPanel\Cache\Drivers\DatabaseDriver;
 use AdosLabs\AdminPanel\Cache\Drivers\ArrayDriver;
+use AdosLabs\EnterprisePSR3Logger\LoggerFacade as Logger;
 
 final class CacheManager
 {
@@ -68,7 +69,7 @@ final class CacheManager
             return $this->driver;
         } catch (\Exception $e) {
             // Log primary driver failure
-            log_warning('default', 'Cache primary driver failed, attempting fallback', [
+            Logger::channel('default')->warning( 'Cache primary driver failed, attempting fallback', [
                 'driver' => $this->config['default'],
                 'error' => $e->getMessage(),
             ]);
@@ -78,13 +79,13 @@ final class CacheManager
                 try {
                     $this->driver = $this->createDriver($this->config['fallback']);
                     $this->usingFallback = true;
-                    log_info('default', 'Cache using fallback driver', [
+                    Logger::channel('default')->info( 'Cache using fallback driver', [
                         'fallback' => $this->config['fallback'],
                     ]);
                     return $this->driver;
                 } catch (\Exception $e2) {
                     // Both failed, log and use array driver
-                    log_error('default', 'Cache fallback driver also failed', [
+                    Logger::channel('error')->error( 'Cache fallback driver also failed', [
                         'fallback' => $this->config['fallback'],
                         'error' => $e2->getMessage(),
                     ]);
@@ -95,7 +96,7 @@ final class CacheManager
         // Ultimate fallback: memory-only
         $this->driver = new ArrayDriver();
         $this->usingFallback = true;
-        log_warning('default', 'Cache using memory-only ArrayDriver (no persistence)');
+        Logger::channel('default')->warning( 'Cache using memory-only ArrayDriver (no persistence)');
         return $this->driver;
     }
 

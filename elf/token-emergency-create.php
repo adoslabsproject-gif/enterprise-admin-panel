@@ -117,7 +117,12 @@ $host = $_ENV['DB_HOST'] ?? 'localhost';
 $port = $_ENV['DB_PORT'] ?? ($driver === 'mysql' ? '3306' : '5432');
 $database = $_ENV['DB_DATABASE'] ?? 'admin_panel';
 $dbUsername = $_ENV['DB_USERNAME'] ?? 'admin';
-$dbPassword = $_ENV['DB_PASSWORD'] ?? 'secret';
+$dbPassword = $_ENV['DB_PASSWORD'] ?? null;
+if ($dbPassword === null) {
+    echo "ERROR: DB_PASSWORD environment variable is required.\n";
+    echo "Set it in your .env file or export it: export DB_PASSWORD=your_password\n";
+    exit(1);
+}
 
 $dsn = match ($driver) {
     'pgsql', 'postgresql' => "pgsql:host={$host};port={$port};dbname={$database}",

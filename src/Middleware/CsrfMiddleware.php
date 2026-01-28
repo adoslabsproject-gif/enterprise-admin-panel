@@ -10,6 +10,7 @@ use Psr\Http\Server\MiddlewareInterface;
 use Psr\Http\Server\RequestHandlerInterface;
 use AdosLabs\AdminPanel\Services\SessionService;
 use AdosLabs\AdminPanel\Http\Response;
+use AdosLabs\EnterprisePSR3Logger\LoggerFacade as Logger;
 
 /**
  * Enterprise CSRF Protection Middleware - STATELESS HMAC
@@ -365,7 +366,7 @@ final class CsrfMiddleware implements MiddlewareInterface
     private function csrfError(ServerRequestInterface $request, string $reason): ResponseInterface
     {
         // Strategic log: CSRF validation failure (potential attack)
-        log_warning('security', 'CSRF validation failed', [
+        Logger::channel('security')->warning( 'CSRF validation failed', [
             'reason' => $reason,
             'method' => $request->getMethod(),
             'uri' => (string) $request->getUri()->getPath(),

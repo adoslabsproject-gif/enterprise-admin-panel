@@ -6,6 +6,7 @@ namespace AdosLabs\AdminPanel\Controllers;
 
 use AdosLabs\AdminPanel\Http\Response;
 use AdosLabs\AdminPanel\Services\LogConfigService;
+use AdosLabs\EnterprisePSR3Logger\LoggerFacade as Logger;
 
 /**
  * Logger Controller
@@ -379,6 +380,7 @@ class LoggerController extends BaseController
             $countRows = $this->db->query($countSql, $params);
             $total = (int)($countRows[0]['cnt'] ?? 0);
         } catch (\PDOException $e) {
+            Logger::channel('error')->error( 'Log count query failed', ['error' => $e->getMessage()]);
             $total = 0;
         }
 
@@ -397,6 +399,7 @@ class LoggerController extends BaseController
                 $log['context'] = json_decode($log['context'] ?? '{}', true) ?: [];
             }
         } catch (\PDOException $e) {
+            Logger::channel('error')->error( 'Log fetch query failed', ['error' => $e->getMessage()]);
             $logs = [];
         }
 
@@ -443,6 +446,10 @@ class LoggerController extends BaseController
             return $this->withFlash('success', "Deleted {$deleted} log entries older than {$olderThan}",
                 $this->adminUrl('logger/database'));
         } catch (\PDOException $e) {
+            Logger::channel('error')->error( 'Database log clear failed', [
+                'older_than' => $olderThan,
+                'error' => $e->getMessage(),
+            ]);
             return $this->withFlash('error', 'Failed to clear logs: ' . $e->getMessage(),
                 $this->adminUrl('logger/database'));
         }
@@ -654,6 +661,7 @@ class LoggerController extends BaseController
 
             return $this->success($logs);
         } catch (\PDOException $e) {
+            Logger::channel('error')->error( 'API log fetch failed', ['error' => $e->getMessage()]);
             return $this->error('Failed to fetch logs');
         }
     }
@@ -702,6 +710,7 @@ class LoggerController extends BaseController
                 'by_level' => $byLevel,
             ];
         } catch (\PDOException $e) {
+            Logger::channel('error')->error( 'Log stats query failed', ['error' => $e->getMessage()]);
             return [
                 'today' => 0,
                 'errors_today' => 0,

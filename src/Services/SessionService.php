@@ -8,6 +8,7 @@ use AdosLabs\AdminPanel\Database\Pool\DatabasePool;
 use Psr\Log\LoggerInterface;
 use Psr\Log\NullLogger;
 use DateTimeImmutable;
+use AdosLabs\EnterprisePSR3Logger\LoggerFacade as Logger;
 
 /**
  * Enterprise Session Service
@@ -90,7 +91,7 @@ final class SessionService
         ]);
 
         // Strategic security log: new session created
-        log_info('security', 'Session created', [
+        Logger::channel('security')->info( 'Session created', [
             'session_id_prefix' => substr($sessionId, 0, 16),
             'user_id' => $userId,
             'ip' => $ipAddress,
@@ -184,7 +185,7 @@ final class SessionService
                 ]);
 
                 // Strategic log: session expired (monitor for unusual patterns)
-                log_info('security', 'Session expired due to inactivity', [
+                Logger::channel('security')->info( 'Session expired due to inactivity', [
                     'session_id_prefix' => substr($sessionId, 0, 16),
                     'user_id' => $session['user_id'] ?? null,
                     'last_activity' => $lastActivity->format('Y-m-d H:i:s'),
@@ -271,7 +272,7 @@ final class SessionService
         ]);
 
         // Strategic security log: session destroyed
-        log_info('security', 'Session destroyed', [
+        Logger::channel('security')->info( 'Session destroyed', [
             'session_id_prefix' => substr($sessionId, 0, 16),
         ]);
 
@@ -305,7 +306,7 @@ final class SessionService
             ]);
 
             // Strategic log: mass session invalidation (security-relevant event)
-            log_warning('security', 'Multiple sessions invalidated for user', [
+            Logger::channel('security')->warning( 'Multiple sessions invalidated for user', [
                 'user_id' => $userId,
                 'sessions_destroyed' => $count,
                 'kept_session' => $exceptSessionId ? substr($exceptSessionId, 0, 16) : null,

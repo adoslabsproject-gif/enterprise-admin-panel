@@ -9,6 +9,7 @@ use AdosLabs\AdminPanel\Database\Pool\PooledConnection;
 use Psr\Log\LoggerInterface;
 use Psr\Log\NullLogger;
 use DateTimeImmutable;
+use AdosLabs\EnterprisePSR3Logger\LoggerFacade as Logger;
 
 /**
  * Enterprise Audit Service
@@ -93,6 +94,11 @@ final class AuditService
             return $id;
         } catch (\Throwable $e) {
             $this->db->rollback($connection);
+            Logger::channel('error')->error( 'Audit log write failed', [
+                'action' => $action,
+                'user_id' => $userId,
+                'error' => $e->getMessage(),
+            ]);
             throw $e;
         }
     }
@@ -163,6 +169,12 @@ final class AuditService
             return $id;
         } catch (\Throwable $e) {
             $this->db->rollback($connection);
+            Logger::channel('error')->error( 'Entity change audit failed', [
+                'action' => $action,
+                'entity_type' => $entityType,
+                'entity_id' => $entityId,
+                'error' => $e->getMessage(),
+            ]);
             throw $e;
         }
     }

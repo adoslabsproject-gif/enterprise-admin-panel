@@ -7,6 +7,7 @@ namespace AdosLabs\AdminPanel\Services;
 use AdosLabs\AdminPanel\Database\Pool\DatabasePool;
 use Psr\Log\LoggerInterface;
 use Psr\Log\NullLogger;
+use AdosLabs\EnterprisePSR3Logger\LoggerFacade as Logger;
 
 /**
  * Enterprise Multi-Channel Notification Service
@@ -268,7 +269,7 @@ final class NotificationService
             fclose($socket);
 
             // Strategic log for email sent
-            log_info('email', 'Email sent successfully', [
+            Logger::channel('email')->info( 'Email sent successfully', [
                 'to' => $to,
                 'subject' => $subject,
                 'smtp_host' => $config['host'],
@@ -278,7 +279,7 @@ final class NotificationService
             return ['success' => true, 'channel' => self::CHANNEL_EMAIL, 'error' => null];
         } catch (\Throwable $e) {
             // Strategic log for email failure
-            log_error('email', 'Email send failed', [
+            Logger::channel('email')->error( 'Email send failed', [
                 'to' => $to,
                 'subject' => $subject,
                 'smtp_host' => $config['host'] ?? 'unknown',
