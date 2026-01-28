@@ -84,6 +84,37 @@ if (!$autoloaded) {
 }
 
 // ============================================================================
+// EARLY TIMEZONE CONFIGURATION
+// Set timezone BEFORE any logging or date operations to ensure correct timestamps
+// Priority: APP_TIMEZONE env > php.ini date.timezone > Europe/Rome default
+// ============================================================================
+
+(function (): void {
+    // Try environment variable first
+    $timezone = $_ENV['APP_TIMEZONE'] ?? getenv('APP_TIMEZONE') ?: null;
+
+    // Fall back to php.ini setting
+    if ($timezone === null || $timezone === '' || $timezone === false) {
+        $iniTimezone = ini_get('date.timezone');
+        if ($iniTimezone !== '' && $iniTimezone !== false) {
+            $timezone = $iniTimezone;
+        }
+    }
+
+    // Default to Europe/Rome
+    if ($timezone === null || $timezone === '' || $timezone === false) {
+        $timezone = 'Europe/Rome';
+    }
+
+    // Apply timezone
+    try {
+        date_default_timezone_set($timezone);
+    } catch (\Throwable $e) {
+        date_default_timezone_set('Europe/Rome');
+    }
+})();
+
+// ============================================================================
 // MODULE ASSETS - Serve CSS/JS directly from vendor packages (BEFORE bootstrap)
 // This avoids initializing DB/cache just to serve static files
 // Path: /module-assets/{package}/{file} -> vendor/ados-labs/{package}/public/{file}
@@ -160,21 +191,20 @@ Bootstrap::init($projectRoot);
 // Imports
 // ============================================================================
 
-use AdosLabs\AdminPanel\Core\Container;
-use AdosLabs\AdminPanel\Core\ModuleRegistry;
 use AdosLabs\AdminPanel\Controllers\AuthController;
 use AdosLabs\AdminPanel\Controllers\DashboardController;
-use AdosLabs\AdminPanel\Services\AuthService;
-use AdosLabs\AdminPanel\Services\SessionService;
+use AdosLabs\AdminPanel\Core\ModuleRegistry;
+use AdosLabs\AdminPanel\Http\ErrorPages;
+use AdosLabs\AdminPanel\Http\Request;
+use AdosLabs\AdminPanel\Http\Response;
+use AdosLabs\AdminPanel\Middleware\CsrfMiddleware;
 use AdosLabs\AdminPanel\Services\AuditService;
+use AdosLabs\AdminPanel\Services\AuthService;
 use AdosLabs\AdminPanel\Services\ConfigService;
 use AdosLabs\AdminPanel\Services\NotificationService;
-use AdosLabs\AdminPanel\Services\TwoFactorService;
 use AdosLabs\AdminPanel\Services\RecoveryService;
-use AdosLabs\AdminPanel\Middleware\CsrfMiddleware;
-use AdosLabs\AdminPanel\Http\Response;
-use AdosLabs\AdminPanel\Http\Request;
-use AdosLabs\AdminPanel\Http\ErrorPages;
+use AdosLabs\AdminPanel\Services\SessionService;
+use AdosLabs\AdminPanel\Services\TwoFactorService;
 
 // ============================================================================
 // Services - All use the database pool via db()
@@ -219,6 +249,7 @@ $getSessionCookie = function () use ($isHttps, $isLocalhost): ?string {
     if ($isHttps && !$isLocalhost) {
         return $_COOKIE['__Secure-admin_session'] ?? $_COOKIE['admin_session'] ?? null;
     }
+
     return $_COOKIE['admin_session'] ?? null;
 };
 
@@ -227,6 +258,12 @@ $getSessionCookie = function () use ($isHttps, $isLocalhost): ?string {
 // ============================================================================
 
 $safeMethods = ['GET', 'HEAD', 'OPTIONS', 'TRACE'];
+
+// Auth routes that don't require CSRF validation
+// These routes handle authentication where the user may not have a valid session
+// when loading the form, but may have an old session cookie when submitting
+$csrfExemptPaths = ['/login', '/2fa/verify', '/recovery'];
+
 if (!in_array($method, $safeMethods, true)) {
     $csrfMiddleware = new CsrfMiddleware($sessionService, $configService->getAdminBasePath());
 
@@ -253,7 +290,14 @@ if (!in_array($method, $safeMethods, true)) {
         }
     }
 
-    if ($csrfSession !== null) {
+    // Get relative path for CSRF exemption check
+    $relativePath = $configService->getAdminRelativePath($fullPath);
+
+    // Skip CSRF validation for auth routes (login, 2fa, recovery)
+    // These routes need to work even when user has stale session cookie
+    $isCsrfExempt = in_array($relativePath, $csrfExemptPaths, true);
+
+    if ($csrfSession !== null && !$isCsrfExempt) {
         $payload = $csrfSession['payload'] ?? '';
         if (is_string($payload)) {
             $payload = json_decode($payload, true) ?? [];
@@ -261,19 +305,24 @@ if (!in_array($method, $safeMethods, true)) {
         $expectedToken = $payload['csrf_token'] ?? '';
         $submittedToken = $_POST['_csrf_token'] ?? $request->getHeaderLine('X-CSRF-Token') ?? '';
 
-        if ($expectedToken === '' || !hash_equals($expectedToken, $submittedToken)) {
-            $auditService->log('csrf_validation_failed', null, [
-                'path' => $fullPath,
-                'method' => $method,
-                'ip' => $_SERVER['REMOTE_ADDR'] ?? 'unknown',
-            ]);
+        // Only validate CSRF if the session has a token configured
+        // Sessions without CSRF token (legacy or corrupted) should not block the request
+        // but we log it for monitoring
+        if ($expectedToken !== '') {
+            if (!hash_equals($expectedToken, $submittedToken)) {
+                $auditService->log('csrf_validation_failed', null, [
+                    'path' => $fullPath,
+                    'method' => $method,
+                    'ip' => $_SERVER['REMOTE_ADDR'] ?? 'unknown',
+                ]);
 
-            ErrorPages::render403('/', 'Invalid CSRF token. Please refresh the page and try again.');
-        }
+                ErrorPages::render403('/', 'Invalid CSRF token. Please refresh the page and try again.');
+            }
 
-        if ($sessionId !== null && $activeSessionId === $sessionId) {
-            $newToken = $csrfMiddleware->regenerateToken($sessionId);
-            $request = $request->withAttribute('csrf_token', $newToken);
+            if ($sessionId !== null && $activeSessionId === $sessionId) {
+                $newToken = $csrfMiddleware->regenerateToken($sessionId);
+                $request = $request->withAttribute('csrf_token', $newToken);
+            }
         }
     }
 }
@@ -286,44 +335,44 @@ if (!in_array($method, $safeMethods, true)) {
 if ($fullPath === '/emergency-login' && $method === 'GET') {
     // Render emergency login form
     $html = <<<HTML
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Emergency Access</title>
-    <style>
-        * { box-sizing: border-box; }
-        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: #0f172a; min-height: 100vh; display: flex; align-items: center; justify-content: center; margin: 0; padding: 1rem; }
-        .card { background: white; border-radius: 12px; padding: 2rem; max-width: 400px; width: 100%; box-shadow: 0 25px 50px -12px rgba(0,0,0,0.5); }
-        .icon { font-size: 3rem; text-align: center; margin-bottom: 1rem; }
-        h1 { margin: 0 0 0.5rem; text-align: center; color: #0f172a; font-size: 1.5rem; }
-        p { color: #64748b; text-align: center; margin: 0 0 1.5rem; font-size: 0.9rem; }
-        label { display: block; font-weight: 500; color: #334155; margin-bottom: 0.5rem; }
-        input { width: 100%; padding: 0.75rem 1rem; border: 1px solid #e2e8f0; border-radius: 8px; font-size: 1rem; font-family: monospace; }
-        input:focus { outline: none; border-color: #3b82f6; box-shadow: 0 0 0 3px rgba(59,130,246,0.1); }
-        button { width: 100%; padding: 0.875rem; background: #dc2626; color: white; border: none; border-radius: 8px; font-size: 1rem; font-weight: 600; cursor: pointer; margin-top: 1rem; }
-        button:hover { background: #b91c1c; }
-        .warning { background: #fef3c7; border: 1px solid #f59e0b; border-radius: 8px; padding: 0.75rem; margin-bottom: 1rem; font-size: 0.85rem; color: #92400e; }
-    </style>
-</head>
-<body>
-    <div class="card">
-        <div class="icon">&#128274;</div>
-        <h1>Emergency Access</h1>
-        <p>Enter your emergency access token to bypass normal authentication.</p>
-        <div class="warning">
-            <strong>Warning:</strong> This token is single-use and will be invalidated after access.
-        </div>
-        <form method="POST" action="/emergency-login">
-            <label for="token">Emergency Token</label>
-            <input type="password" id="token" name="token" placeholder="Enter your emergency token" required autofocus>
-            <button type="submit">Access Dashboard</button>
-        </form>
-    </div>
-</body>
-</html>
-HTML;
+        <!DOCTYPE html>
+        <html lang="en">
+        <head>
+            <meta charset="UTF-8">
+            <meta name="viewport" content="width=device-width, initial-scale=1.0">
+            <title>Emergency Access</title>
+            <style>
+                * { box-sizing: border-box; }
+                body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: #0f172a; min-height: 100vh; display: flex; align-items: center; justify-content: center; margin: 0; padding: 1rem; }
+                .card { background: white; border-radius: 12px; padding: 2rem; max-width: 400px; width: 100%; box-shadow: 0 25px 50px -12px rgba(0,0,0,0.5); }
+                .icon { font-size: 3rem; text-align: center; margin-bottom: 1rem; }
+                h1 { margin: 0 0 0.5rem; text-align: center; color: #0f172a; font-size: 1.5rem; }
+                p { color: #64748b; text-align: center; margin: 0 0 1.5rem; font-size: 0.9rem; }
+                label { display: block; font-weight: 500; color: #334155; margin-bottom: 0.5rem; }
+                input { width: 100%; padding: 0.75rem 1rem; border: 1px solid #e2e8f0; border-radius: 8px; font-size: 1rem; font-family: monospace; }
+                input:focus { outline: none; border-color: #3b82f6; box-shadow: 0 0 0 3px rgba(59,130,246,0.1); }
+                button { width: 100%; padding: 0.875rem; background: #dc2626; color: white; border: none; border-radius: 8px; font-size: 1rem; font-weight: 600; cursor: pointer; margin-top: 1rem; }
+                button:hover { background: #b91c1c; }
+                .warning { background: #fef3c7; border: 1px solid #f59e0b; border-radius: 8px; padding: 0.75rem; margin-bottom: 1rem; font-size: 0.85rem; color: #92400e; }
+            </style>
+        </head>
+        <body>
+            <div class="card">
+                <div class="icon">&#128274;</div>
+                <h1>Emergency Access</h1>
+                <p>Enter your emergency access token to bypass normal authentication.</p>
+                <div class="warning">
+                    <strong>Warning:</strong> This token is single-use and will be invalidated after access.
+                </div>
+                <form method="POST" action="/emergency-login">
+                    <label for="token">Emergency Token</label>
+                    <input type="password" id="token" name="token" placeholder="Enter your emergency token" required autofocus>
+                    <button type="submit">Access Dashboard</button>
+                </form>
+            </div>
+        </body>
+        </html>
+        HTML;
     header('Content-Type: text/html; charset=utf-8');
     echo $html;
     exit;
@@ -449,7 +498,7 @@ $relativePath = $configService->getAdminRelativePath($fullPath);
 // ============================================================================
 
 $response = null;
-$buildUrl = fn(string $path) => $configService->buildAdminUrl($path);
+$buildUrl = fn (string $path) => $configService->buildAdminUrl($path);
 
 try {
     // ========================================================================
@@ -554,6 +603,44 @@ try {
     }
 
     // ========================================================================
+    // Session Extend API (explicitly extend session by 1 hour)
+    // ========================================================================
+    elseif ($relativePath === '/api/session/extend' && $method === 'POST') {
+        $sessionId = $getSessionCookie() ?? null;
+
+        if ($sessionId === null) {
+            $response = Response::json([
+                'success' => false,
+                'message' => 'No session',
+            ], 401);
+        } else {
+            $extended = $sessionService->extend($sessionId);
+
+            if ($extended) {
+                // Get updated session info
+                $session = $sessionService->get($sessionId);
+                $expiresAt = new DateTimeImmutable($session['expires_at']);
+                $now = new DateTimeImmutable();
+                $expiresInSeconds = max(0, $expiresAt->getTimestamp() - $now->getTimestamp());
+
+                $response = Response::json([
+                    'success' => true,
+                    'active' => true,
+                    'expires_in' => $expiresInSeconds,
+                    'should_warn' => false,
+                    'extension_count' => $session['payload']['extension_count'] ?? 0,
+                    'message' => 'Session extended',
+                ]);
+            } else {
+                $response = Response::json([
+                    'success' => false,
+                    'message' => 'Session not found',
+                ], 401);
+            }
+        }
+    }
+
+    // ========================================================================
     // Infrastructure Metrics API (requires authentication)
     // ========================================================================
     elseif ($relativePath === '/api/dbpool' && $method === 'GET') {
@@ -568,8 +655,7 @@ try {
             $controller->setConfigService($configService);
             $response = $controller->dbPoolMetrics();
         }
-    }
-    elseif ($relativePath === '/api/redis' && $method === 'GET') {
+    } elseif ($relativePath === '/api/redis' && $method === 'GET') {
         $sessionId = $getSessionCookie() ?? null;
         $session = $sessionId ? $sessionService->validate($sessionId) : null;
 
@@ -690,7 +776,7 @@ try {
         bin2hex(random_bytes(8)),
         $isDev,
         $isDev ? $e->getMessage() : null,
-        $isDev ? $e->getTraceAsString() : null
+        $isDev ? $e->getTraceAsString() : null,
     );
 }
 

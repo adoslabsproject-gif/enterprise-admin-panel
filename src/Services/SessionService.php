@@ -172,7 +172,7 @@ final class SessionService
 
             if ($lastActivity >= $extensionWindowStart) {
                 // User was active in the last 5 minutes before expiry - extend session
-                $this->extendSession($sessionId, $session);
+                $this->extend($sessionId, $session);
                 $this->logger->info('Session extended due to recent activity', [
                     'session_id' => substr($sessionId, 0, 16) . '...',
                 ]);
@@ -200,9 +200,21 @@ final class SessionService
 
     /**
      * Extend session by the configured extension amount
+     *
+     * @param string $sessionId Session ID
+     * @param array|null $session Session data (if null, will be fetched)
+     * @return bool True if session was extended, false if not found
      */
-    private function extendSession(string $sessionId, array $session): void
+    public function extend(string $sessionId, ?array $session = null): bool
     {
+        if ($session === null) {
+            $session = $this->get($sessionId);
+        }
+
+        if ($session === null) {
+            return false;
+        }
+
         $now = new DateTimeImmutable();
         $newExpiresAt = $now->modify('+' . self::SESSION_EXTENSION_AMOUNT_MINUTES . ' minutes');
 
@@ -219,6 +231,8 @@ final class SessionService
                 $sessionId,
             ]
         );
+
+        return true;
     }
 
     /**

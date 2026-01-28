@@ -243,11 +243,49 @@
         },
 
         extendSession: function() {
-            // Send heartbeat to extend session
-            this.sendHeartbeat();
+            var self = this;
+            var xhr = new XMLHttpRequest();
+            var url = this.basePath + '/api/session/extend';
 
-            // Hide warning
-            this.hideWarning();
+            console.log('[SessionGuard] Extending session via:', url);
+
+            xhr.open('POST', url, true);
+            xhr.setRequestHeader('Accept', 'application/json');
+            xhr.setRequestHeader('Content-Type', 'application/x-www-form-urlencoded');
+
+            // Add CSRF token if available
+            var csrfMeta = document.querySelector('meta[name="csrf-token"]');
+            if (csrfMeta) {
+                xhr.setRequestHeader('X-CSRF-Token', csrfMeta.content);
+            }
+
+            xhr.onreadystatechange = function() {
+                if (xhr.readyState === 4) {
+                    console.log('[SessionGuard] Extend response:', xhr.status);
+                    if (xhr.status === 200) {
+                        try {
+                            var data = JSON.parse(xhr.responseText);
+                            console.log('[SessionGuard] Session extended:', data);
+                            if (data.success) {
+                                self.expiresIn = data.expires_in;
+                                self.hideWarning();
+                            } else {
+                                console.error('[SessionGuard] Extend failed:', data.message);
+                                self.handleSessionExpired();
+                            }
+                        } catch (e) {
+                            console.error('[SessionGuard] Parse error:', e);
+                        }
+                    } else if (xhr.status === 401 || xhr.status === 403) {
+                        console.warn('[SessionGuard] Session expired during extend');
+                        self.handleSessionExpired();
+                    } else {
+                        console.error('[SessionGuard] Extend failed with status:', xhr.status);
+                    }
+                }
+            };
+
+            xhr.send('');
         },
 
         hideWarning: function() {
