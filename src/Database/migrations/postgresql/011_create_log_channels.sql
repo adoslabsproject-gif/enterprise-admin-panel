@@ -62,14 +62,16 @@ CREATE TRIGGER trg_log_channels_updated_at
     EXECUTE FUNCTION update_log_channels_updated_at();
 
 -- Insert default channels
+-- IMPORTANT: Only 'security' channel logs to database for audit compliance
+-- All other channels log to file only to prevent database bloat
 INSERT INTO log_channels (channel, min_level, enabled, description, handlers) VALUES
-    ('default', 'info', TRUE, 'Default application logs', '["file", "database"]'),
+    ('default', 'info', TRUE, 'Default application logs', '["file"]'),
     ('security', 'info', TRUE, 'Security events, authentication, authorization', '["file", "database"]'),
     ('api', 'warning', TRUE, 'API requests and responses', '["file"]'),
     ('database', 'warning', TRUE, 'Database queries, slow queries, errors', '["file"]'),
-    ('email', 'info', TRUE, 'Email sending, SMTP errors', '["file", "database"]'),
+    ('email', 'info', TRUE, 'Email sending, SMTP errors', '["file"]'),
     ('performance', 'warning', TRUE, 'Performance metrics, slow operations', '["file"]'),
-    ('audit', 'info', TRUE, 'Audit trail, user actions', '["database"]')
+    ('audit', 'info', TRUE, 'Audit trail, user actions', '["file"]')
 ON CONFLICT (channel) DO NOTHING;
 
 -- Create table for Telegram notification configuration

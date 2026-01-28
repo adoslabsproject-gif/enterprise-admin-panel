@@ -89,6 +89,14 @@ final class SessionService
             'expires_at' => $expiresAt->format('Y-m-d H:i:s'),
         ]);
 
+        // Strategic security log: new session created
+        log_info('security', 'Session created', [
+            'session_id_prefix' => substr($sessionId, 0, 16),
+            'user_id' => $userId,
+            'ip' => $ipAddress,
+            'expires_at' => $expiresAt->format('Y-m-d H:i:s'),
+        ]);
+
         return $sessionId;
     }
 
@@ -176,7 +184,7 @@ final class SessionService
                 ]);
 
                 // Strategic log: session expired (monitor for unusual patterns)
-                log_info('session', 'Session expired due to inactivity', [
+                log_info('security', 'Session expired due to inactivity', [
                     'session_id_prefix' => substr($sessionId, 0, 16),
                     'user_id' => $session['user_id'] ?? null,
                     'last_activity' => $lastActivity->format('Y-m-d H:i:s'),
@@ -260,6 +268,11 @@ final class SessionService
 
         $this->logger->info('Session destroyed', [
             'session_id' => substr($sessionId, 0, 16) . '...',
+        ]);
+
+        // Strategic security log: session destroyed
+        log_info('security', 'Session destroyed', [
+            'session_id_prefix' => substr($sessionId, 0, 16),
         ]);
 
         return $affected > 0;

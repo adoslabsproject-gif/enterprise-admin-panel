@@ -69,8 +69,8 @@ final class PoolConfig
     private string $applicationName = 'enterprise-admin-panel';
     private string $timezone = 'UTC';
 
-    // Redis integration (ENABLED by default for enterprise features)
-    private bool $redisEnabled = true;
+    // Redis integration (DISABLED by default - enable explicitly if Redis is available)
+    private bool $redisEnabled = false;
     private string $redisHost = 'localhost';
     private int $redisPort = 6379;
     private ?string $redisPassword = null;
@@ -199,6 +199,24 @@ final class PoolConfig
 
         if ($this->maxLifetime < 0) {
             throw new InvalidArgumentException('Max lifetime must be >= 0');
+        }
+
+        // Max lifetime should be >= idle timeout (connection shouldn't die idle before max lifetime)
+        if ($this->maxLifetime > 0 && $this->idleTimeout > 0 && $this->maxLifetime < $this->idleTimeout) {
+            throw new InvalidArgumentException('Max lifetime must be >= idle timeout');
+        }
+
+        if ($this->waitTimeout <= 0) {
+            throw new InvalidArgumentException('Wait timeout must be > 0');
+        }
+
+        if ($this->validationInterval < 0) {
+            throw new InvalidArgumentException('Validation interval must be >= 0');
+        }
+
+        // Validation interval should be <= idle timeout to catch stale connections
+        if ($this->validationInterval > 0 && $this->idleTimeout > 0 && $this->validationInterval > $this->idleTimeout) {
+            throw new InvalidArgumentException('Validation interval should be <= idle timeout');
         }
 
         if (!in_array($this->driver, ['pgsql', 'mysql', 'sqlite'], true)) {

@@ -48,14 +48,16 @@ CREATE TABLE IF NOT EXISTS log_channels (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- Insert default channels
+-- IMPORTANT: Only 'security' channel logs to database for audit compliance
+-- All other channels log to file only to prevent database bloat
 INSERT IGNORE INTO log_channels (channel, min_level, enabled, description, handlers) VALUES
-    ('default', 'info', 1, 'Default application logs', '["file", "database"]'),
+    ('default', 'info', 1, 'Default application logs', '["file"]'),
     ('security', 'info', 1, 'Security events, authentication, authorization', '["file", "database"]'),
     ('api', 'warning', 1, 'API requests and responses', '["file"]'),
     ('database', 'warning', 1, 'Database queries, slow queries, errors', '["file"]'),
-    ('email', 'info', 1, 'Email sending, SMTP errors', '["file", "database"]'),
+    ('email', 'info', 1, 'Email sending, SMTP errors', '["file"]'),
     ('performance', 'warning', 1, 'Performance metrics, slow operations', '["file"]'),
-    ('audit', 'info', 1, 'Audit trail, user actions', '["database"]');
+    ('audit', 'info', 1, 'Audit trail, user actions', '["file"]');
 
 -- Create table for Telegram notification configuration
 CREATE TABLE IF NOT EXISTS log_telegram_config (

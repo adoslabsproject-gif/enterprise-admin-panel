@@ -195,6 +195,13 @@ $moduleRegistry = new ModuleRegistry($dbPool);
 // Discover modules from installed packages
 $moduleRegistry->discoverModules();
 
+// Register built-in modules (internal to admin-panel)
+$moduleRegistry->registerModule(
+    'logger',
+    \AdosLabs\AdminPanel\Modules\LoggerModule::class,
+    30 // Priority: lower than default modules
+);
+
 // ============================================================================
 // Request Parsing
 // ============================================================================

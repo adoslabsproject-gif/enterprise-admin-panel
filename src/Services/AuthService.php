@@ -116,7 +116,7 @@ final class AuthService
             ], $ipAddress, $userAgent);
 
             // Strategic log: unknown email login attempt
-            log_warning('auth', 'Login attempt with unknown email', [
+            log_warning('security', 'Login attempt with unknown email', [
                 'email' => $email,
                 'ip' => $ipAddress,
             ]);
@@ -136,7 +136,7 @@ final class AuthService
             ], $ipAddress, $userAgent);
 
             // Strategic log: locked account access attempt
-            log_warning('auth', 'Login attempt on locked account', [
+            log_warning('security', 'Login attempt on locked account', [
                 'user_id' => $user['id'],
                 'email' => $email,
                 'ip' => $ipAddress,
@@ -158,7 +158,7 @@ final class AuthService
             ], $ipAddress, $userAgent);
 
             // Strategic log: disabled account access attempt
-            log_warning('auth', 'Login attempt on disabled account', [
+            log_warning('security', 'Login attempt on disabled account', [
                 'user_id' => $user['id'],
                 'email' => $email,
                 'ip' => $ipAddress,
@@ -177,7 +177,7 @@ final class AuthService
             $this->recordFailedAttempt($user['id'], $ipAddress, $userAgent);
 
             // Strategic log: password failure
-            log_warning('auth', 'Invalid password attempt', [
+            log_warning('security', 'Invalid password attempt', [
                 'user_id' => $user['id'],
                 'email' => $email,
                 'ip' => $ipAddress,
