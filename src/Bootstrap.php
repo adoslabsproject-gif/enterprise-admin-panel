@@ -27,6 +27,8 @@ use AdosLabs\AdminPanel\Cache\CacheManager;
 use AdosLabs\AdminPanel\Services\LogConfigService;
 use AdosLabs\AdminPanel\Logging\LogBuffer;
 use AdosLabs\AdminPanel\Logging\LogFlusher;
+use AdosLabs\EnterprisePSR3Logger\LoggerFacade;
+use AdosLabs\EnterprisePSR3Logger\LoggerFactory;
 
 final class Bootstrap
 {
@@ -61,6 +63,7 @@ final class Bootstrap
         self::registerCacheManager($config['cache'] ?? []);
         self::registerLogDecider();
         self::registerLogFlusher();
+        self::registerLoggerFacade();
 
         self::$initialized = true;
 
@@ -255,9 +258,7 @@ final class Bootstrap
     {
         Container::singleton('log.decider', function () {
             $pool = Container::get('db.pool');
-            $cache = Container::get('cache');
-
-            return new LogConfigService($pool, $cache);
+            return LogConfigService::getInstance($pool);
         });
     }
 
@@ -295,6 +296,18 @@ final class Bootstrap
 
             $flusher = new LogFlusher($redis, $logPath);
             $flusher->flush($buffer->getBuffer());
+        });
+    }
+
+    /**
+     * Configure LoggerFacade to create loggers with file handlers
+     */
+    private static function registerLoggerFacade(): void
+    {
+        $logDir = self::$basePath . '/storage/logs';
+
+        LoggerFacade::setLoggerFactory(function (string $channel) use ($logDir): \AdosLabs\EnterprisePSR3Logger\Logger {
+            return LoggerFactory::minimal($channel, "{$logDir}/{$channel}-" . date('Y-m-d') . '.log');
         });
     }
 
