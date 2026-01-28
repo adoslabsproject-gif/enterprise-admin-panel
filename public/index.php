@@ -193,14 +193,8 @@ $recoveryService = new RecoveryService($dbPool, $notificationService, $auditServ
 $moduleRegistry = new ModuleRegistry($dbPool);
 
 // Discover modules from installed packages
+// This automatically registers modules from composer packages like enterprise-psr3-logger
 $moduleRegistry->discoverModules();
-
-// Register built-in modules (internal to admin-panel)
-$moduleRegistry->registerModule(
-    'logger',
-    \AdosLabs\AdminPanel\Modules\LoggerModule::class,
-    30 // Priority: lower than default modules
-);
 
 // ============================================================================
 // Request Parsing

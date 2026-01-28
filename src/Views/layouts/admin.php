@@ -43,12 +43,16 @@
                         <div class="eap-sidebar__section"># <?= htmlspecialchars(strtolower(str_replace(['adoslabs/', '-'], ['', '_'], $module))) ?></div>
                         <?php endif; ?>
                     <?php
-                        // Transform module URLs from /admin/... to dynamic base path
+                        // Transform module URLs to use dynamic base path
                         $tabUrl = $tab['url'];
                         if (str_starts_with($tabUrl, '/admin/')) {
+                            // Legacy: /admin/logger -> {base_path}/logger
                             $tabUrl = $admin_base_path . '/' . substr($tabUrl, 7);
                         } elseif ($tabUrl === '/admin') {
                             $tabUrl = $admin_base_path;
+                        } elseif (str_starts_with($tabUrl, '/') && !str_starts_with($tabUrl, $admin_base_path)) {
+                            // Relative URL: /logger -> {base_path}/logger
+                            $tabUrl = $admin_base_path . $tabUrl;
                         }
                     ?>
                     <a href="<?= htmlspecialchars($tabUrl) ?>" class="eap-sidebar__link">
