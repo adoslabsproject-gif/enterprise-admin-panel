@@ -4,10 +4,11 @@
  * Enterprise Lightning Framework (ELF) - Change Admin Password
  *
  * Changes the password for an admin user.
- * Requires master token + email + current password for authentication.
+ * Requires master token + email for authentication.
+ * The master token IS the ultimate authority - no current password needed.
  *
  * Usage:
- *   php elf/password-change.php --token=MASTER_TOKEN --email=admin@example.com --password=CURRENT_PASSWORD --new-password=NEW_PASSWORD
+ *   php elf/password-change.php --token=MASTER_TOKEN --email=admin@example.com --new-password=NEW_PASSWORD
  */
 
 declare(strict_types=1);
@@ -45,7 +46,6 @@ if (file_exists($envFile)) {
 $options = getopt('', [
     'token:',
     'email:',
-    'password:',
     'new-password:',
     'json',
     'help',
@@ -57,26 +57,22 @@ Enterprise Lightning Framework (ELF) - Change Admin Password
 =============================================================
 
 Changes the password for an admin user.
-All three authentication factors are required: token + email + password.
+The master token IS the ultimate authority - no current password needed.
 
 Usage:
-  php elf/password-change.php --token=TOKEN --email=EMAIL --password=CURRENT --new-password=NEW
+  php elf/password-change.php --token=TOKEN --email=EMAIL --new-password=NEW
 
 Required:
-  --token=TOKEN           Master CLI token
+  --token=TOKEN           Master CLI token (generated during install)
   --email=EMAIL           Admin email address
-  --password=CURRENT      Current password
-  --new-password=NEW      New password (minimum 12 characters, must include special char and number)
+  --new-password=NEW      New password (minimum 8 characters)
 
 Options:
   --json                  Output as JSON
   --help                  Show this help
 
 Security:
-  - Requires all three: master token + email + current password
-  - New password must be at least 12 characters
-  - New password must contain at least 1 special character
-  - New password must contain at least 1 number
+  - Master token = full authority, no current password required
   - All active sessions are invalidated after password change
   - Master CLI token remains unchanged
 
@@ -85,7 +81,7 @@ HELP;
 }
 
 // Validate required parameters
-$requiredParams = ['token', 'email', 'password', 'new-password'];
+$requiredParams = ['token', 'email', 'new-password'];
 $missing = [];
 foreach ($requiredParams as $param) {
     if (empty($options[$param])) {
@@ -101,30 +97,16 @@ if (!empty($missing)) {
 
 $token = $options['token'];
 $email = $options['email'];
-$currentPassword = $options['password'];
 $newPassword = $options['new-password'];
 $jsonOutput = isset($options['json']);
 
-// Validate new password
-$passwordErrors = [];
-if (strlen($newPassword) < 12) {
-    $passwordErrors[] = 'Password must be at least 12 characters';
-}
-if (!preg_match('/[0-9]/', $newPassword)) {
-    $passwordErrors[] = 'Password must contain at least 1 number';
-}
-if (!preg_match('/[!@#$%^&*\-_=+]/', $newPassword)) {
-    $passwordErrors[] = 'Password must contain at least 1 special character (!@#$%^&*-_=+)';
-}
-
-if (!empty($passwordErrors)) {
+// Validate new password (simple: just minimum length)
+if (strlen($newPassword) < 8) {
+    $error = 'Password must be at least 8 characters';
     if ($jsonOutput) {
-        echo json_encode(['success' => false, 'errors' => $passwordErrors], JSON_PRETTY_PRINT) . "\n";
+        echo json_encode(['success' => false, 'error' => $error], JSON_PRETTY_PRINT) . "\n";
     } else {
-        echo "ERROR: Invalid new password:\n";
-        foreach ($passwordErrors as $error) {
-            echo "  - {$error}\n";
-        }
+        echo "ERROR: {$error}\n";
     }
     exit(1);
 }
@@ -159,10 +141,10 @@ try {
 }
 
 // ============================================================================
-// Verify user: email + password + token (all three required)
+// Verify user: email + master token (master token = ultimate authority)
 // ============================================================================
 
-$stmt = $pdo->prepare('SELECT id, password_hash, cli_token_hash, is_master, is_active FROM admin_users WHERE email = ?');
+$stmt = $pdo->prepare('SELECT id, cli_token_hash, is_master, is_active FROM admin_users WHERE email = ?');
 $stmt->execute([$email]);
 $user = $stmt->fetch();
 
@@ -186,18 +168,7 @@ if (!$user['is_active']) {
     exit(1);
 }
 
-// Verify current password
-if (!password_verify($currentPassword, $user['password_hash'])) {
-    $error = "Invalid current password";
-    if ($jsonOutput) {
-        echo json_encode(['success' => false, 'error' => $error], JSON_PRETTY_PRINT) . "\n";
-    } else {
-        echo "ERROR: {$error}\n";
-    }
-    exit(1);
-}
-
-// Verify master token
+// Verify master token - THIS IS THE ULTIMATE AUTHORITY
 if (empty($user['cli_token_hash'])) {
     $error = "No master token set for this user. Run install.php first.";
     if ($jsonOutput) {
@@ -219,7 +190,7 @@ if (!password_verify($token, $user['cli_token_hash'])) {
 }
 
 if (!$jsonOutput) {
-    echo "  [OK] Authentication verified (token + email + password)\n\n";
+    echo "  [OK] Master token verified - full authority granted\n\n";
 }
 
 // ============================================================================

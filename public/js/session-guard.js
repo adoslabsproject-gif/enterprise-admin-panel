@@ -206,13 +206,8 @@
                 });
             }
 
-            // Add styles if not already present
-            if (!document.getElementById('session-warning-styles')) {
-                var style = document.createElement('style');
-                style.id = 'session-warning-styles';
-                style.textContent = this.getWarningStyles();
-                document.head.appendChild(style);
-            }
+            // NOTE: Styles are loaded from admin.css (CSP compliant)
+            // No inline styles needed
         },
 
         getWarningHTML: function(secondsRemaining) {
@@ -245,79 +240,6 @@
                 var seconds = Math.floor(secondsRemaining % 60);
                 countdown.textContent = this.formatTime(minutes, seconds);
             }
-        },
-
-        getWarningStyles: function() {
-            return '.session-warning-overlay {' +
-                'position: fixed;' +
-                'inset: 0;' +
-                'background: rgba(0, 0, 0, 0.7);' +
-                'display: flex;' +
-                'align-items: center;' +
-                'justify-content: center;' +
-                'z-index: 10000;' +
-                'font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;' +
-            '}' +
-            '.session-warning-dialog {' +
-                'background: white;' +
-                'border-radius: 12px;' +
-                'padding: 2rem;' +
-                'max-width: 400px;' +
-                'text-align: center;' +
-                'box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.4);' +
-            '}' +
-            '.session-warning-icon {' +
-                'font-size: 3rem;' +
-                'color: #f59e0b;' +
-            '}' +
-            '.session-warning-title {' +
-                'margin: 1rem 0 0.5rem;' +
-                'font-size: 1.5rem;' +
-                'color: #1e293b;' +
-            '}' +
-            '.session-warning-text {' +
-                'color: #64748b;' +
-                'margin: 0;' +
-            '}' +
-            '.session-warning-countdown {' +
-                'font-size: 3rem;' +
-                'font-weight: bold;' +
-                'color: #dc2626;' +
-                'font-family: monospace;' +
-                'margin: 1rem 0;' +
-            '}' +
-            '.session-warning-subtext {' +
-                'color: #64748b;' +
-                'font-size: 0.875rem;' +
-                'margin-bottom: 1.5rem;' +
-            '}' +
-            '.session-warning-buttons {' +
-                'display: flex;' +
-                'gap: 0.75rem;' +
-            '}' +
-            '.session-btn {' +
-                'flex: 1;' +
-                'padding: 0.75rem 1rem;' +
-                'border-radius: 0.5rem;' +
-                'font-size: 1rem;' +
-                'font-weight: 500;' +
-                'cursor: pointer;' +
-                'border: none;' +
-            '}' +
-            '.session-btn-primary {' +
-                'background: #2563eb;' +
-                'color: white;' +
-            '}' +
-            '.session-btn-primary:hover {' +
-                'background: #1d4ed8;' +
-            '}' +
-            '.session-btn-secondary {' +
-                'background: #f1f5f9;' +
-                'color: #475569;' +
-            '}' +
-            '.session-btn-secondary:hover {' +
-                'background: #e2e8f0;' +
-            '}';
         },
 
         extendSession: function() {

@@ -12,18 +12,25 @@ use AdosLabs\AdminPanel\Services\SessionService;
 use AdosLabs\AdminPanel\Http\Response;
 
 /**
- * Enterprise CSRF Protection Middleware
+ * Enterprise CSRF Protection Middleware - STATELESS HMAC
  *
- * Features:
- * - Token-based CSRF protection
- * - Double-submit cookie pattern
- * - Same-site cookie support
- * - Origin/Referer validation
- * - Configurable safe methods
+ * Stateless HMAC-based CSRF protection:
+ * - Token = base64(timestamp.HMAC-SHA256(session_id + timestamp, secret_key))
+ * - NO database writes during validation
+ * - NO token regeneration needed
+ * - Token valid for configurable duration (default: 60 minutes)
+ * - Cryptographically secure via HMAC-SHA256
+ *
+ * Security layers:
+ * 1. HMAC signature verification (unforgeability)
+ * 2. Timestamp validation (replay protection)
+ * 3. Session binding (cross-session protection)
+ * 4. Origin/Referer validation
+ * 5. SameSite cookie enforcement
  *
  * PSR-15 compatible middleware
  *
- * @version 1.0.0
+ * @version 2.0.0
  */
 final class CsrfMiddleware implements MiddlewareInterface
 {
@@ -44,19 +51,138 @@ final class CsrfMiddleware implements MiddlewareInterface
      */
     public const ATTR_TOKEN = 'csrf_token';
 
+    /**
+     * Token validity duration in seconds (60 minutes)
+     */
+    private const TOKEN_LIFETIME_SECONDS = 3600;
+
+    /**
+     * HMAC algorithm
+     */
+    private const HMAC_ALGO = 'sha256';
+
     private bool $validateOrigin;
     private array $trustedOrigins;
     private string $adminBasePath;
+    private string $secretKey;
+    private int $tokenLifetime;
 
     public function __construct(
         private SessionService $sessionService,
         string $adminBasePath = '/admin',
         bool $validateOrigin = true,
-        array $trustedOrigins = []
+        array $trustedOrigins = [],
+        ?string $secretKey = null,
+        int $tokenLifetime = self::TOKEN_LIFETIME_SECONDS
     ) {
         $this->adminBasePath = $adminBasePath;
         $this->validateOrigin = $validateOrigin;
         $this->trustedOrigins = $trustedOrigins;
+        $this->tokenLifetime = $tokenLifetime;
+
+        // Secret key: use provided, env, or generate from master token
+        $this->secretKey = $secretKey
+            ?? $_ENV['CSRF_SECRET_KEY']
+            ?? $_ENV['EAP_CSRF_SECRET']
+            ?? $this->deriveSecretKey();
+    }
+
+    /**
+     * Derive secret key from master token or generate one
+     */
+    private function deriveSecretKey(): string
+    {
+        $masterToken = $_ENV['EAP_MASTER_TOKEN'] ?? $_ENV['MASTER_TOKEN'] ?? null;
+
+        if ($masterToken !== null) {
+            // Derive CSRF key from master token using HKDF
+            return hash_hmac(self::HMAC_ALGO, 'csrf-protection-key', $masterToken);
+        }
+
+        // Fallback: use app key or generate random (not ideal for distributed systems)
+        $appKey = $_ENV['EAP_APP_KEY'] ?? $_ENV['APP_KEY'] ?? null;
+
+        if ($appKey !== null) {
+            return hash_hmac(self::HMAC_ALGO, 'csrf-protection-key', $appKey);
+        }
+
+        // Last resort: generate from PHP's random
+        // Note: This will cause issues in load-balanced environments
+        // In production, always set CSRF_SECRET_KEY or EAP_MASTER_TOKEN
+        return hash(self::HMAC_ALGO, random_bytes(32));
+    }
+
+    /**
+     * Generate HMAC-based CSRF token
+     *
+     * Token format: base64(timestamp_hex.signature)
+     * Where signature = HMAC-SHA256(session_id + timestamp, secret_key)
+     *
+     * @param string $sessionId Session ID to bind token to
+     * @return string CSRF token
+     */
+    public function generateToken(string $sessionId): string
+    {
+        $timestamp = time();
+        $timestampHex = dechex($timestamp);
+
+        // Create signature: HMAC(session_id + timestamp, secret)
+        $payload = $sessionId . '|' . $timestamp;
+        $signature = hash_hmac(self::HMAC_ALGO, $payload, $this->secretKey);
+
+        // Token = base64(timestamp_hex.signature)
+        return base64_encode($timestampHex . '.' . $signature);
+    }
+
+    /**
+     * Verify HMAC-based CSRF token
+     *
+     * Validates:
+     * 1. Token format
+     * 2. Timestamp not expired
+     * 3. HMAC signature matches
+     *
+     * @param string $sessionId Session ID
+     * @param string $token Token to verify
+     * @return bool Valid or not
+     */
+    public function verifyToken(string $sessionId, string $token): bool
+    {
+        // Decode token
+        $decoded = base64_decode($token, true);
+
+        if ($decoded === false) {
+            return false;
+        }
+
+        // Parse: timestamp_hex.signature
+        $parts = explode('.', $decoded, 2);
+
+        if (count($parts) !== 2) {
+            return false;
+        }
+
+        [$timestampHex, $signature] = $parts;
+
+        // Convert timestamp
+        $timestamp = hexdec($timestampHex);
+
+        if ($timestamp === 0) {
+            return false;
+        }
+
+        // Check expiry
+        $now = time();
+
+        if (($now - $timestamp) > $this->tokenLifetime) {
+            return false; // Token expired
+        }
+
+        // Verify signature
+        $payload = $sessionId . '|' . $timestamp;
+        $expectedSignature = hash_hmac(self::HMAC_ALGO, $payload, $this->secretKey);
+
+        return hash_equals($expectedSignature, $signature);
     }
 
     /**
@@ -65,30 +191,25 @@ final class CsrfMiddleware implements MiddlewareInterface
     public function validateToken(ServerRequestInterface $request): bool
     {
         $session = $request->getAttribute('admin_session');
+
         if ($session === null) {
             return true; // No session, let auth handle it
         }
 
         $sessionId = $session['id'] ?? null;
+
         if ($sessionId === null) {
             return true;
         }
 
         // Extract token from request
         $token = $this->extractToken($request);
+
         if ($token === null) {
             return false;
         }
 
-        return $this->sessionService->verifyCsrfToken($sessionId, $token);
-    }
-
-    /**
-     * Regenerate CSRF token (for manual use)
-     */
-    public function regenerateToken(string $sessionId): string
-    {
-        return $this->sessionService->regenerateCsrfToken($sessionId);
+        return $this->verifyToken($sessionId, $token);
     }
 
     /**
@@ -122,19 +243,24 @@ final class CsrfMiddleware implements MiddlewareInterface
             return $this->csrfError($request, 'Missing CSRF token');
         }
 
-        if (!$this->sessionService->verifyCsrfToken($sessionId, $token)) {
+        if (!$this->verifyToken($sessionId, $token)) {
             return $this->csrfError($request, 'Invalid CSRF token');
         }
 
-        // Regenerate token after use (prevents replay attacks)
-        $newToken = $this->sessionService->regenerateCsrfToken($sessionId);
+        // STATELESS: No token regeneration!
+        // The same token remains valid until it expires
+        // This is safe because:
+        // 1. Token is bound to session ID
+        // 2. Token has expiry timestamp
+        // 3. HMAC prevents forgery
+
+        // Generate fresh token for the view (will have updated timestamp)
+        $freshToken = $this->generateToken($sessionId);
 
         // Continue with request
-        $request = $request->withAttribute(self::ATTR_TOKEN, $newToken);
-        $response = $handler->handle($request);
+        $request = $request->withAttribute(self::ATTR_TOKEN, $freshToken);
 
-        // Set new token in response cookie
-        return $this->setTokenCookie($response, $newToken);
+        return $handler->handle($request);
     }
 
     /**
@@ -145,7 +271,8 @@ final class CsrfMiddleware implements MiddlewareInterface
         $sessionId = AuthMiddleware::getSessionId($request);
 
         if ($sessionId !== null) {
-            $token = $this->sessionService->getCsrfToken($sessionId);
+            // Generate fresh token with current timestamp
+            $token = $this->generateToken($sessionId);
             $request = $request->withAttribute(self::ATTR_TOKEN, $token);
         }
 
@@ -210,18 +337,21 @@ final class CsrfMiddleware implements MiddlewareInterface
     {
         // Try header first (for AJAX requests)
         $header = $request->getHeaderLine(self::TOKEN_HEADER);
+
         if (!empty($header)) {
             return $header;
         }
 
         // Try POST body
         $body = $request->getParsedBody();
+
         if (is_array($body) && isset($body[self::TOKEN_FIELD])) {
             return $body[self::TOKEN_FIELD];
         }
 
         // Try query string (for GET with side effects - not recommended)
         $query = $request->getQueryParams();
+
         if (isset($query[self::TOKEN_FIELD])) {
             return $query[self::TOKEN_FIELD];
         }
@@ -234,6 +364,16 @@ final class CsrfMiddleware implements MiddlewareInterface
      */
     private function csrfError(ServerRequestInterface $request, string $reason): ResponseInterface
     {
+        // Strategic log: CSRF validation failure (potential attack)
+        log_warning('security', 'CSRF validation failed', [
+            'reason' => $reason,
+            'method' => $request->getMethod(),
+            'uri' => (string) $request->getUri()->getPath(),
+            'ip' => $request->getServerParams()['REMOTE_ADDR'] ?? 'unknown',
+            'origin' => $request->getHeaderLine('Origin') ?: null,
+            'referer' => $request->getHeaderLine('Referer') ?: null,
+        ]);
+
         $isAjax = $request->getHeaderLine('X-Requested-With') === 'XMLHttpRequest' ||
                   str_contains($request->getHeaderLine('Accept'), 'application/json');
 
@@ -249,20 +389,6 @@ final class CsrfMiddleware implements MiddlewareInterface
             '<h1>403 Forbidden</h1><p>CSRF validation failed: ' . htmlspecialchars($reason) . '</p><p>Please refresh the page and try again.</p>',
             403
         );
-    }
-
-    /**
-     * Set CSRF token cookie in response
-     */
-    private function setTokenCookie(ResponseInterface $response, string $token): ResponseInterface
-    {
-        $cookie = sprintf(
-            '%s=%s; Path=/; HttpOnly; SameSite=Strict; Secure',
-            self::TOKEN_COOKIE,
-            $token
-        );
-
-        return $response->withAddedHeader('Set-Cookie', $cookie);
     }
 
     /**
@@ -306,5 +432,30 @@ final class CsrfMiddleware implements MiddlewareInterface
             '<meta name="csrf-token" content="%s">',
             htmlspecialchars($token)
         );
+    }
+
+    /**
+     * Get token lifetime in seconds
+     */
+    public function getTokenLifetime(): int
+    {
+        return $this->tokenLifetime;
+    }
+
+    /**
+     * Regenerate CSRF token (alias for generateToken with stateless HMAC)
+     *
+     * With stateless HMAC tokens, "regeneration" simply means generating
+     * a new token with a fresh timestamp. The old token remains valid
+     * until it expires (token lifetime).
+     *
+     * This method exists for backward compatibility.
+     *
+     * @param string $sessionId Session ID to bind token to
+     * @return string New CSRF token
+     */
+    public function regenerateToken(string $sessionId): string
+    {
+        return $this->generateToken($sessionId);
     }
 }

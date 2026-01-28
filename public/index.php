@@ -623,11 +623,12 @@ try {
     // Module routes
     // ========================================================================
     else {
-        $moduleRoutePath = '/admin' . $relativePath;
+        // Module routes are registered without /admin prefix (e.g., /logger/channels/update)
+        // so we match against $relativePath directly
         $routes = $moduleRegistry->getRoutes();
 
         foreach ($routes as $route) {
-            if ($route['method'] === $method && $route['path'] === $moduleRoutePath) {
+            if ($route['method'] === $method && $route['path'] === $relativePath) {
                 $sessionId = $getSessionCookie() ?? null;
                 $session = $sessionId ? $sessionService->validate($sessionId) : null;
 

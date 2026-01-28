@@ -15,6 +15,7 @@
         <?php endforeach; ?>
     <?php endif; ?>
     <?= $csrf_meta ?? '' ?>
+    <meta name="admin-base-url" content="<?= htmlspecialchars($admin_base_path ?? '/admin') ?>">
 </head>
 <body>
     <div class="eap-layout">

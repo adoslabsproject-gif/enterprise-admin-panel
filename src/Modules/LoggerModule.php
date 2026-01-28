@@ -75,19 +75,9 @@ class LoggerModule extends BaseModule
                         'icon' => 'layers',
                     ],
                     [
-                        'label' => 'Database Logs',
-                        'url' => '/logger/database',
-                        'icon' => 'database',
-                    ],
-                    [
                         'label' => 'Telegram',
                         'url' => '/logger/telegram',
                         'icon' => 'send',
-                    ],
-                    [
-                        'label' => 'PHP Errors',
-                        'url' => '/logger/php-errors',
-                        'icon' => 'alert-triangle',
                     ],
                 ],
             ],
@@ -143,18 +133,6 @@ class LoggerModule extends BaseModule
                 'handler' => [LoggerController::class, 'testTelegram'],
             ],
 
-            // Database Logs
-            [
-                'method' => 'GET',
-                'path' => '/logger/database',
-                'handler' => [LoggerController::class, 'database'],
-            ],
-            [
-                'method' => 'POST',
-                'path' => '/logger/database/clear',
-                'handler' => [LoggerController::class, 'clearDatabaseLogs'],
-            ],
-
             // File viewer
             [
                 'method' => 'GET',
@@ -165,6 +143,11 @@ class LoggerModule extends BaseModule
                 'method' => 'GET',
                 'path' => '/logger/file/download',
                 'handler' => [LoggerController::class, 'fileDownload'],
+            ],
+            [
+                'method' => 'POST',
+                'path' => '/logger/file/delete',
+                'handler' => [LoggerController::class, 'fileDelete'],
             ],
 
             // PHP Errors
@@ -199,8 +182,6 @@ class LoggerModule extends BaseModule
             'logger.view',
             'logger.channels.manage',
             'logger.telegram.manage',
-            'logger.database.view',
-            'logger.database.clear',
             'logger.files.view',
             'logger.files.download',
             'logger.php-errors.view',

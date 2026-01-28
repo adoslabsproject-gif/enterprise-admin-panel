@@ -267,8 +267,25 @@ final class NotificationService
             $this->smtpCommand($socket, "QUIT");
             fclose($socket);
 
+            // Strategic log for email sent
+            log_info('email', 'Email sent successfully', [
+                'to' => $to,
+                'subject' => $subject,
+                'smtp_host' => $config['host'],
+                'smtp_port' => $config['port'],
+            ]);
+
             return ['success' => true, 'channel' => self::CHANNEL_EMAIL, 'error' => null];
         } catch (\Throwable $e) {
+            // Strategic log for email failure
+            log_error('email', 'Email send failed', [
+                'to' => $to,
+                'subject' => $subject,
+                'smtp_host' => $config['host'] ?? 'unknown',
+                'smtp_port' => $config['port'] ?? 'unknown',
+                'error' => $e->getMessage(),
+            ]);
+
             return ['success' => false, 'channel' => self::CHANNEL_EMAIL, 'error' => $e->getMessage()];
         }
     }

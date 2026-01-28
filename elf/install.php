@@ -627,7 +627,7 @@ if ($jsonOutput) {
             'database' => $database,
         ],
         'next_steps' => [
-            'Start server: php -S localhost:8080 -t public',
+            'Start server: php -S localhost:8080 router.php',
             'Open: ' . $fullUrl,
             'Login with credentials above',
         ],
@@ -769,10 +769,19 @@ if ($faviconsCopied > 0) {
     echo "  [OK] Copied {$faviconsCopied} favicon files\n";
 }
 
+// Copy router.php for PHP built-in server
+$routerSource = $packageRoot . '/router.php';
+$routerTarget = $projectRoot . '/router.php';
+
+if (file_exists($routerSource) && !file_exists($routerTarget)) {
+    copy($routerSource, $routerTarget);
+    echo "  [OK] Copied router.php (for PHP built-in server)\n";
+}
+
 echo "\n";
 echo "Next steps:\n";
 echo "  1. cd {$projectRoot}\n";
-echo "  2. php -S localhost:8080 -t public\n";
+echo "  2. php -S localhost:8080 router.php\n";
 echo "  3. Open browser:  {$fullUrl}\n";
 echo "  4. Login with:    {$adminEmail} / {$adminPassword}\n";
 echo "\n";
@@ -790,6 +799,27 @@ echo "║  php vendor/ados-labs/enterprise-admin-panel/elf/opcache-setup.php --c
 echo "║  php vendor/ados-labs/enterprise-admin-panel/elf/opcache-setup.php --generate║\n";
 echo "║                                                                             ║\n";
 echo "║  For production: sudo php elf/opcache-setup.php --install --fpm-restart     ║\n";
+echo "╚══════════════════════════════════════════════════════════════════════════════╝\n";
+echo "\n";
+echo "╔══════════════════════════════════════════════════════════════════════════════╗\n";
+echo "║                                                                              ║\n";
+echo "║     ▄▄▄       ██████▄  ▒█████    ██████     ██▓    ▄▄▄       ▄▄▄▄    ██████  ║\n";
+echo "║    ▒████▄    ▒██    ▒ ▒██▒  ██▒▒██    ▒    ▓██▒   ▒████▄    ▓█████▄ ▒██    ▒ ║\n";
+echo "║    ▒██  ▀█▄  ░ ▓██▄   ▒██░  ██▒░ ▓██▄      ▒██░   ▒██  ▀█▄  ▒██▒ ▄██░ ▓██▄   ║\n";
+echo "║    ░██▄▄▄▄██   ▒   ██▒▒██   ██░  ▒   ██▒   ▒██░   ░██▄▄▄▄██ ▒██░█▀    ▒   ██▒║\n";
+echo "║     ▓█   ▓██▒▒██████▒▒░ ████▓▒░▒██████▒▒   ░██████▒▓█   ▓██▒░▓█  ▀█▓▒██████▒▒║\n";
+echo "║     ▒▒   ▓▒█░▒ ▒▓▒ ▒ ░░ ▒░▒░▒░ ▒ ▒▓▒ ▒ ░   ░ ▒░▓  ░▒▒   ▓▒█░░▒▓███▀▒▒ ▒▓▒ ▒ ░║\n";
+echo "║      ▒   ▒▒ ░░ ░▒  ░ ░  ░ ▒ ▒░ ░ ░▒  ░ ░   ░ ░ ▒  ░ ▒   ▒▒ ░▒░▒   ░ ░ ░▒  ░ ░║\n";
+echo "║      ░   ▒   ░  ░  ░  ░ ░ ░ ▒  ░  ░  ░       ░ ░    ░   ▒    ░    ░ ░  ░  ░  ║\n";
+echo "║          ░  ░      ░      ░ ░        ░         ░  ░     ░  ░ ░            ░  ║\n";
+echo "║                                                                   ░         ║\n";
+echo "║                                                                              ║\n";
+echo "║          Enterprise Lightning Framework (ELF) by ADOS LABS                   ║\n";
+echo "║                                                                              ║\n";
+echo "║    ╔════════════════════════════════════════════════════════════════════╗    ║\n";
+echo "║    ║     IL FRAMEWORK PHP PIU' SICURO E VELOCE AL MONDO!               ║    ║\n";
+echo "║    ╚════════════════════════════════════════════════════════════════════╝    ║\n";
+echo "║                                                                              ║\n";
 echo "╚══════════════════════════════════════════════════════════════════════════════╝\n";
 echo "\n";
 echo "Installation complete!\n\n";

@@ -1,0 +1,88 @@
+/**
+ * Logger File Viewer Styles
+ *
+ * BEM naming: .eap-log-file-*
+ * No inline styles, CSP compliant
+ */
+
+/* Log content viewer */
+.eap-log-file__content {
+    background: var(--eap-bg-dark, #0f172a);
+    color: var(--eap-text-light, #e2e8f0);
+    padding: 1rem;
+    margin: 0;
+    font-family: 'JetBrains Mono', 'Fira Code', 'SF Mono', 'Monaco', 'Consolas', monospace;
+    font-size: 0.75rem;
+    line-height: 1.6;
+    overflow-x: auto;
+    max-height: 70vh;
+    overflow-y: auto;
+    white-space: pre;
+    tab-size: 4;
+}
+
+.eap-log-file__content::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+}
+
+.eap-log-file__content::-webkit-scrollbar-track {
+    background: var(--eap-bg-secondary, #1e293b);
+}
+
+.eap-log-file__content::-webkit-scrollbar-thumb {
+    background: var(--eap-border, #334155);
+    border-radius: 4px;
+}
+
+.eap-log-file__content::-webkit-scrollbar-thumb:hover {
+    background: var(--eap-border-hover, #475569);
+}
+
+/* Info grid */
+.eap-log-file__info-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 1rem;
+}
+
+@media (max-width: 768px) {
+    .eap-log-file__info-grid {
+        grid-template-columns: 1fr;
+    }
+}
+
+.eap-log-file__info-item {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+}
+
+.eap-log-file__info-label {
+    font-size: 0.75rem;
+    color: var(--eap-text-muted, #64748b);
+}
+
+.eap-log-file__info-value {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.875rem;
+}
+
+/* Lines selector form */
+.eap-log-file__lines-form {
+    display: inline-flex;
+    gap: 0.5rem;
+    align-items: center;
+}
+
+/* Empty state */
+.eap-log-file__empty {
+    padding: 3rem;
+    text-align: center;
+    color: var(--eap-text-muted, #64748b);
+}
+
+.eap-log-file__empty-icon {
+    margin-bottom: 1rem;
+    opacity: 0.5;
+}

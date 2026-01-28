@@ -383,27 +383,32 @@ if (!function_exists('generate_secure_password')) {
      * @param int $length Password length (minimum 16)
      * @return string Generated password
      */
-    function generate_secure_password(int $length = 20): string
+    function generate_secure_password(int $length = 24): string
     {
-        if ($length < 16) {
-            $length = 16;
+        // Minimum 24 characters for security without special chars
+        if ($length < 24) {
+            $length = 24;
         }
 
         $uppercase = 'ABCDEFGHJKLMNPQRSTUVWXYZ'; // No I, O (confusing)
         $lowercase = 'abcdefghjkmnpqrstuvwxyz';  // No i, l, o (confusing)
         $numbers = '23456789';                   // No 0, 1 (confusing)
-        $special = '!@#$%^&*-_=+';
 
-        // Ensure at least one of each required type
+        // NO SPECIAL CHARACTERS - avoids shell escaping issues
+        // Security comes from length (24+ chars) instead
+
+        // Ensure at least 2 of each required type
         $password = '';
         $password .= $uppercase[random_int(0, strlen($uppercase) - 1)];
+        $password .= $uppercase[random_int(0, strlen($uppercase) - 1)];
+        $password .= $lowercase[random_int(0, strlen($lowercase) - 1)];
         $password .= $lowercase[random_int(0, strlen($lowercase) - 1)];
         $password .= $numbers[random_int(0, strlen($numbers) - 1)];
-        $password .= $special[random_int(0, strlen($special) - 1)];
+        $password .= $numbers[random_int(0, strlen($numbers) - 1)];
 
         // Fill remaining with random mix
-        $allChars = $uppercase . $lowercase . $numbers . $special;
-        $remaining = $length - 4;
+        $allChars = $uppercase . $lowercase . $numbers;
+        $remaining = $length - 6;
 
         for ($i = 0; $i < $remaining; $i++) {
             $password .= $allChars[random_int(0, strlen($allChars) - 1)];
@@ -431,5 +436,110 @@ if (!function_exists('generate_master_token')) {
     function generate_master_token(): string
     {
         return 'master-' . implode('-', str_split(bin2hex(random_bytes(16)), 8));
+    }
+}
+
+// ============================================================================
+// LOGGING HELPERS
+// ============================================================================
+
+if (!function_exists('log_message')) {
+    /**
+     * Log a message IMMEDIATELY to file
+     *
+     * Writes to storage/logs/{channel}-YYYY-MM-DD.log
+     * No buffering - logs are written in real-time.
+     *
+     * @param string $channel Log channel (security, email, auth, etc.)
+     * @param string $level PSR-3 log level
+     * @param string $message Log message
+     * @param array<string, mixed> $context Additional context data
+     */
+    function log_message(string $channel, string $level, string $message, array $context = []): void
+    {
+        // Check if should log (uses multi-layer cache)
+        if (!should_log($channel, $level)) {
+            return;
+        }
+
+        // Build log entry with full context
+        $timestamp = (new \DateTimeImmutable())->format('Y-m-d H:i:s.u');
+        $levelUpper = strtoupper($level);
+
+        // Always include context as JSON for structured logging
+        $contextJson = json_encode($context, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
+
+        $logLine = "[{$timestamp}] {$channel}.{$levelUpper}: {$message} {$contextJson}" . PHP_EOL;
+
+        // Determine log path - separate file per channel
+        $basePath = \AdosLabs\AdminPanel\Bootstrap::getBasePath();
+        $logDir = $basePath . '/storage/logs';
+
+        // Channel-specific log file (security.log, email.log, auth.log, etc.)
+        $logFile = $logDir . '/' . $channel . '-' . date('Y-m-d') . '.log';
+
+        // Ensure directory exists
+        if (!is_dir($logDir)) {
+            @mkdir($logDir, 0755, true);
+        }
+
+        // Write immediately (append, with lock)
+        @file_put_contents($logFile, $logLine, FILE_APPEND | LOCK_EX);
+    }
+}
+
+if (!function_exists('log_debug')) {
+    function log_debug(string $channel, string $message, array $context = []): void
+    {
+        log_message($channel, 'debug', $message, $context);
+    }
+}
+
+if (!function_exists('log_info')) {
+    function log_info(string $channel, string $message, array $context = []): void
+    {
+        log_message($channel, 'info', $message, $context);
+    }
+}
+
+if (!function_exists('log_notice')) {
+    function log_notice(string $channel, string $message, array $context = []): void
+    {
+        log_message($channel, 'notice', $message, $context);
+    }
+}
+
+if (!function_exists('log_warning')) {
+    function log_warning(string $channel, string $message, array $context = []): void
+    {
+        log_message($channel, 'warning', $message, $context);
+    }
+}
+
+if (!function_exists('log_error')) {
+    function log_error(string $channel, string $message, array $context = []): void
+    {
+        log_message($channel, 'error', $message, $context);
+    }
+}
+
+if (!function_exists('log_critical')) {
+    function log_critical(string $channel, string $message, array $context = []): void
+    {
+        log_message($channel, 'critical', $message, $context);
+    }
+}
+
+if (!function_exists('log_alert')) {
+    function log_alert(string $channel, string $message, array $context = []): void
+    {
+        log_message($channel, 'alert', $message, $context);
+    }
+}
+
+if (!function_exists('log_emergency')) {
+    function log_emergency(string $channel, string $message, array $context = []): void
+    {
+        log_message($channel, 'emergency', $message, $context);
     }
 }

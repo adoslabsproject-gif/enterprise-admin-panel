@@ -174,6 +174,14 @@ final class SessionService
                     'session_id' => substr($sessionId, 0, 16) . '...',
                     'last_activity' => $lastActivity->format('Y-m-d H:i:s'),
                 ]);
+
+                // Strategic log: session expired (monitor for unusual patterns)
+                log_info('session', 'Session expired due to inactivity', [
+                    'session_id_prefix' => substr($sessionId, 0, 16),
+                    'user_id' => $session['user_id'] ?? null,
+                    'last_activity' => $lastActivity->format('Y-m-d H:i:s'),
+                ]);
+
                 return null;
             }
         }
@@ -281,6 +289,13 @@ final class SessionService
             $this->logger->info('Sessions destroyed for user', [
                 'user_id' => $userId,
                 'count' => $count,
+            ]);
+
+            // Strategic log: mass session invalidation (security-relevant event)
+            log_warning('security', 'Multiple sessions invalidated for user', [
+                'user_id' => $userId,
+                'sessions_destroyed' => $count,
+                'kept_session' => $exceptSessionId ? substr($exceptSessionId, 0, 16) : null,
             ]);
         }
 

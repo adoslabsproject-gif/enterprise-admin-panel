@@ -25,6 +25,8 @@ use AdosLabs\AdminPanel\Database\Pool\DatabasePool;
 use AdosLabs\AdminPanel\Database\Pool\PoolConfig;
 use AdosLabs\AdminPanel\Cache\CacheManager;
 use AdosLabs\AdminPanel\Services\LogConfigService;
+use AdosLabs\AdminPanel\Logging\LogBuffer;
+use AdosLabs\AdminPanel\Logging\LogFlusher;
 
 final class Bootstrap
 {
@@ -58,6 +60,7 @@ final class Bootstrap
         self::registerDatabasePool($config['database'] ?? []);
         self::registerCacheManager($config['cache'] ?? []);
         self::registerLogDecider();
+        self::registerLogFlusher();
 
         self::$initialized = true;
 
@@ -255,6 +258,43 @@ final class Bootstrap
             $cache = Container::get('cache');
 
             return new LogConfigService($pool, $cache);
+        });
+    }
+
+    /**
+     * Register log flusher for buffered logging
+     *
+     * Flushes logs to Redis queue (async DB write) or file fallback
+     * at request end.
+     */
+    private static function registerLogFlusher(): void
+    {
+        // Register shutdown handler to flush logs
+        register_shutdown_function(function (): void {
+            $buffer = LogBuffer::getInstance();
+
+            if ($buffer->getBufferSize() === 0) {
+                return;
+            }
+
+            // Get Redis from cache manager if available
+            $redis = null;
+            try {
+                if (Container::has('cache')) {
+                    $cacheManager = Container::get('cache');
+                    if (method_exists($cacheManager, 'getRedis')) {
+                        $redis = $cacheManager->getRedis();
+                    }
+                }
+            } catch (\Throwable $e) {
+                // Redis not available
+            }
+
+            // Log path
+            $logPath = self::$basePath . '/storage/logs';
+
+            $flusher = new LogFlusher($redis, $logPath);
+            $flusher->flush($buffer->getBuffer());
         });
     }
 

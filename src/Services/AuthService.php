@@ -115,6 +115,12 @@ final class AuthService
                 'email' => $email,
             ], $ipAddress, $userAgent);
 
+            // Strategic log: unknown email login attempt
+            log_warning('auth', 'Login attempt with unknown email', [
+                'email' => $email,
+                'ip' => $ipAddress,
+            ]);
+
             return [
                 'success' => false,
                 'user' => null,
@@ -128,6 +134,14 @@ final class AuthService
             $this->auditService->log('login_failed', $user['id'], [
                 'reason' => 'account_locked',
             ], $ipAddress, $userAgent);
+
+            // Strategic log: locked account access attempt
+            log_warning('auth', 'Login attempt on locked account', [
+                'user_id' => $user['id'],
+                'email' => $email,
+                'ip' => $ipAddress,
+                'locked_until' => $user['locked_until'],
+            ]);
 
             return [
                 'success' => false,
@@ -143,6 +157,13 @@ final class AuthService
                 'reason' => 'account_disabled',
             ], $ipAddress, $userAgent);
 
+            // Strategic log: disabled account access attempt
+            log_warning('auth', 'Login attempt on disabled account', [
+                'user_id' => $user['id'],
+                'email' => $email,
+                'ip' => $ipAddress,
+            ]);
+
             return [
                 'success' => false,
                 'user' => null,
@@ -154,6 +175,14 @@ final class AuthService
         // Verify password
         if (!password_verify($password, $user['password_hash'])) {
             $this->recordFailedAttempt($user['id'], $ipAddress, $userAgent);
+
+            // Strategic log: password failure
+            log_warning('auth', 'Invalid password attempt', [
+                'user_id' => $user['id'],
+                'email' => $email,
+                'ip' => $ipAddress,
+                'failed_attempts' => $user['failed_login_attempts'] + 1,
+            ]);
 
             return [
                 'success' => false,
@@ -255,6 +284,13 @@ final class AuthService
                     'code_prefix' => substr($code, 0, 4) . '****',
                 ], $ipAddress, $userAgent);
 
+                // Strategic log: recovery code used (important security event)
+                log_warning('security', '2FA recovery code used', [
+                    'user_id' => $userId,
+                    'ip' => $ipAddress,
+                    'method' => $method,
+                ]);
+
                 return $this->completeLogin($user, $ipAddress, $userAgent);
             }
 
@@ -279,10 +315,24 @@ final class AuthService
                 'code_prefix' => substr($code, 0, 4) . '****',
             ], $ipAddress, $userAgent);
 
+            // Strategic log: recovery code used (TOTP path)
+            log_warning('security', '2FA recovery code used', [
+                'user_id' => $userId,
+                'ip' => $ipAddress,
+                'method' => 'totp',
+            ]);
+
             return $this->completeLogin($user, $ipAddress, $userAgent);
         }
 
         $this->auditService->log('2fa_failed', $userId, [], $ipAddress, $userAgent);
+
+        // Strategic log: 2FA verification failed
+        log_warning('security', '2FA verification failed', [
+            'user_id' => $userId,
+            'ip' => $ipAddress,
+            'method' => $method,
+        ]);
 
         return [
             'success' => false,
@@ -309,6 +359,15 @@ final class AuthService
         $this->auditService->log('login', $user['id'], [
             'session_id' => substr($sessionId, 0, 16) . '...',
         ], $ipAddress, $userAgent);
+
+        // Strategic security log for successful login
+        log_info('security', 'User logged in successfully', [
+            'user_id' => $user['id'],
+            'email' => $user['email'],
+            'ip' => $ipAddress,
+            'session_id' => substr($sessionId, 0, 16) . '...',
+            '2fa_verified' => $user['two_factor_enabled'] ? 'yes' : 'not_required',
+        ]);
 
         $this->logger->info('User logged in', [
             'user_id' => $user['id'],
@@ -379,6 +438,25 @@ final class AuthService
             'is_recovery' => $isRecoveryLogin,
         ]);
 
+        // Strategic security logs
+        if ($isRecoveryLogin) {
+            // Recovery login bypasses 2FA - log as warning
+            log_warning('security', 'Recovery login used - 2FA bypassed', [
+                'user_id' => $userId,
+                'email' => $user['email'],
+                'ip' => $ipAddress,
+                'session_id' => substr($sessionId, 0, 16) . '...',
+            ]);
+        } else {
+            // Direct session creation (e.g., API token, SSO)
+            log_info('security', 'User session created directly', [
+                'user_id' => $userId,
+                'email' => $user['email'],
+                'ip' => $ipAddress,
+                'session_id' => substr($sessionId, 0, 16) . '...',
+            ]);
+        }
+
         return [
             'success' => true,
             'session_id' => $sessionId,
@@ -404,6 +482,13 @@ final class AuthService
 
         // Audit log
         $this->auditService->log('logout', $userId, [], $ipAddress, $userAgent);
+
+        // Strategic security log for logout
+        log_info('security', 'User logged out', [
+            'user_id' => $userId,
+            'ip' => $ipAddress,
+            'session_id' => substr($sessionId, 0, 16) . '...',
+        ]);
 
         $this->logger->info('User logged out', ['user_id' => $userId]);
 
@@ -446,6 +531,12 @@ final class AuthService
                 'reason' => 'invalid_current_password',
             ], $ipAddress, $userAgent);
 
+            // Strategic log: password change with wrong current password
+            log_warning('security', 'Password change failed - invalid current password', [
+                'user_id' => $userId,
+                'ip' => $ipAddress,
+            ]);
+
             return false;
         }
 
@@ -454,6 +545,13 @@ final class AuthService
             'UPDATE admin_users SET password_hash = ?, updated_at = NOW() WHERE id = ?',
             [$this->hashPassword($newPassword), $userId]
         );
+
+        // Strategic log: password changed via changePassword()
+        log_warning('security', 'Password changed successfully', [
+            'user_id' => $userId,
+            'ip' => $ipAddress,
+            'method' => 'changePassword',
+        ]);
 
         // Invalidate all other sessions
         $this->sessionService->destroyAllExcept($userId, null);
@@ -651,6 +749,14 @@ final class AuthService
                 'attempts' => $attempts,
                 'lockout_minutes' => $lockoutMinutes,
             ]);
+
+            // Strategic log: account locked (potential brute force)
+            log_error('security', 'Account locked due to excessive failed attempts', [
+                'user_id' => $userId,
+                'ip' => $ipAddress,
+                'attempts' => $attempts,
+                'lockout_minutes' => $lockoutMinutes,
+            ]);
         }
 
         $this->auditService->log('login_failed', $userId, [
@@ -690,6 +796,12 @@ final class AuthService
             'UPDATE admin_users SET password_hash = ? WHERE id = ?',
             [$this->hashPassword($password), $userId]
         );
+
+        // Strategic log: password rehashed (security upgrade)
+        log_info('security', 'Password rehashed (algo upgrade)', [
+            'user_id' => $userId,
+            'method' => 'updatePasswordHash',
+        ]);
 
         $this->logger->info('Password rehashed for user', ['user_id' => $userId]);
     }
@@ -1023,6 +1135,12 @@ final class AuthService
                 'reason' => 'invalid_or_expired',
             ], $ipAddress, $userAgent);
 
+            // Strategic log: invalid reset token attempt
+            log_warning('security', 'Invalid password reset token used', [
+                'ip' => $ipAddress,
+                'token_prefix' => substr($token, 0, 8) . '...',
+            ]);
+
             return [
                 'success' => false,
                 'error' => $verification['error'],
@@ -1036,6 +1154,13 @@ final class AuthService
             'UPDATE admin_users SET password_hash = ?, password_reset_token = NULL, password_reset_expires_at = NULL, updated_at = NOW() WHERE id = ?',
             [$this->hashPassword($newPassword), $userId]
         );
+
+        // Strategic log: password reset via token
+        log_warning('security', 'Password reset via token', [
+            'user_id' => $userId,
+            'ip' => $ipAddress,
+            'method' => 'resetPassword',
+        ]);
 
         // Invalidate all sessions
         $this->sessionService->destroyAllExcept($userId, null);

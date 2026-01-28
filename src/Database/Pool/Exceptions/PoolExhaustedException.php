@@ -18,10 +18,11 @@ final class PoolExhaustedException extends PoolException
     public function __construct(
         string $connectionName,
         int $poolSize,
-        int $waitTimeout
+        float $waitTimeout,
+        ?string $reason = null
     ) {
-        $message = sprintf(
-            "Connection pool exhausted for '%s'. Pool size: %d. Wait timeout: %ds",
+        $message = $reason ?? sprintf(
+            "Connection pool exhausted for '%s'. Pool size: %d. Wait timeout: %.1fs",
             $connectionName,
             $poolSize,
             $waitTimeout

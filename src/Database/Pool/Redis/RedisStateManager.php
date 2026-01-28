@@ -32,12 +32,18 @@ final class RedisStateManager
 
     /**
      * Lua script for atomic circuit breaker state transition
+     *
+     * ENTERPRISE FIX: Uses Redis TIME command instead of PHP time()
+     * This prevents clock skew issues in distributed environments where
+     * PHP servers may have slightly different clocks.
      */
     private const LUA_RECORD_FAILURE = <<<'LUA'
 local key = KEYS[1]
 local threshold = tonumber(ARGV[1])
 local recovery_time = tonumber(ARGV[2])
-local now = tonumber(ARGV[3])
+-- ENTERPRISE FIX: Use Redis server time, not PHP time (ARGV[3] is ignored)
+local time_result = redis.call('TIME')
+local now = tonumber(time_result[1])
 
 local state = redis.call('HGET', key, 'state') or 'closed'
 local failure_count = tonumber(redis.call('HGET', key, 'failure_count') or '0')
@@ -65,11 +71,15 @@ LUA;
 
     /**
      * Lua script for atomic success recording
+     *
+     * ENTERPRISE FIX: Uses Redis TIME for consistency (though less critical here)
      */
     private const LUA_RECORD_SUCCESS = <<<'LUA'
 local key = KEYS[1]
 local half_open_threshold = tonumber(ARGV[1])
-local now = tonumber(ARGV[2])
+-- ENTERPRISE FIX: Use Redis server time for consistency
+local time_result = redis.call('TIME')
+local now = tonumber(time_result[1])
 
 local state = redis.call('HGET', key, 'state') or 'closed'
 local success_count = tonumber(redis.call('HGET', key, 'success_count') or '0')
@@ -77,6 +87,7 @@ local total_successes = tonumber(redis.call('HGET', key, 'total_successes') or '
 
 total_successes = total_successes + 1
 redis.call('HSET', key, 'total_successes', total_successes)
+redis.call('HSET', key, 'last_success_time', now)
 
 if state == 'half_open' then
     success_count = success_count + 1
@@ -87,6 +98,7 @@ if state == 'half_open' then
         redis.call('HSET', key, 'state', 'closed')
         redis.call('HSET', key, 'failure_count', 0)
         redis.call('HSET', key, 'success_count', 0)
+        redis.call('HSET', key, 'closed_at', now)
         redis.call('HDEL', key, 'opened_at')
         state = 'closed'
     end
@@ -101,31 +113,41 @@ LUA;
 
     /**
      * Lua script for checking if request should be allowed
+     *
+     * ENTERPRISE FIX: Uses Redis TIME for recovery timer comparison.
+     * This is CRITICAL - without it, clock skew between PHP and Redis
+     * can cause premature or delayed recovery.
      */
     private const LUA_ALLOW_REQUEST = <<<'LUA'
 local key = KEYS[1]
 local recovery_time = tonumber(ARGV[1])
-local now = tonumber(ARGV[2])
+-- ENTERPRISE FIX: Use Redis server time, not PHP time
+local time_result = redis.call('TIME')
+local now = tonumber(time_result[1])
 
 local state = redis.call('HGET', key, 'state') or 'closed'
 
 if state == 'closed' then
-    return {1, state}
+    return {1, state, now}
 end
 
 if state == 'half_open' then
-    return {1, state}
+    return {1, state, now}
 end
 
 -- State is OPEN - check if recovery time elapsed
 local opened_at = tonumber(redis.call('HGET', key, 'opened_at') or '0')
-if (now - opened_at) >= recovery_time then
+local time_remaining = recovery_time - (now - opened_at)
+
+if time_remaining <= 0 then
     redis.call('HSET', key, 'state', 'half_open')
     redis.call('HSET', key, 'success_count', 0)
-    return {1, 'half_open'}
+    redis.call('HSET', key, 'half_open_at', now)
+    return {1, 'half_open', now}
 end
 
-return {0, state}
+-- Return time remaining for better debugging
+return {0, state, time_remaining}
 LUA;
 
     /**
@@ -140,6 +162,28 @@ local ttl = tonumber(ARGV[3])
 local result = redis.call('HINCRBYFLOAT', key, field, amount)
 redis.call('EXPIRE', key, ttl)
 return result
+LUA;
+
+    /**
+     * Lua script for atomic lock release (prevents TOCTOU race)
+     *
+     * ENTERPRISE FIX: The previous implementation had a TOCTOU vulnerability:
+     * 1. Thread A: GET lock owner = "A" (correct)
+     * 2. Thread B: SET lock owner = "B" (lock acquired)
+     * 3. Thread A: DEL lock (deletes B's lock!)
+     *
+     * This Lua script makes the check-and-delete atomic.
+     */
+    private const LUA_RELEASE_LOCK = <<<'LUA'
+local key = KEYS[1]
+local expected_owner = ARGV[1]
+
+local current_owner = redis.call('GET', key)
+if current_owner == expected_owner then
+    redis.call('DEL', key)
+    return 1
+end
+return 0
 LUA;
 
     public function __construct(
@@ -366,7 +410,10 @@ LUA;
                 'total_successes' => (int) ($data['total_successes'] ?? 0),
                 'trip_count' => (int) ($data['trip_count'] ?? 0),
                 'last_failure_time' => isset($data['last_failure_time']) ? (float) $data['last_failure_time'] : null,
+                'last_success_time' => isset($data['last_success_time']) ? (float) $data['last_success_time'] : null,
                 'opened_at' => isset($data['opened_at']) ? (float) $data['opened_at'] : null,
+                'half_open_at' => isset($data['half_open_at']) ? (float) $data['half_open_at'] : null,
+                'closed_at' => isset($data['closed_at']) ? (float) $data['closed_at'] : null,
             ];
         } catch (RedisException $e) {
             $this->handleError($e);
@@ -599,6 +646,9 @@ LUA;
     /**
      * Release a distributed lock
      *
+     * ENTERPRISE FIX: Uses atomic Lua script to prevent TOCTOU race condition.
+     * Without this, another process could acquire the lock between our GET and DEL.
+     *
      * @param string $lockName Lock name
      * @param string $owner Lock owner (only owner can release)
      * @return bool True if lock released
@@ -610,13 +660,14 @@ LUA;
         }
 
         try {
-            // Only release if we own the lock
-            $currentOwner = $this->redis->get("lock:{$lockName}");
-            if ($currentOwner === $owner) {
-                $this->redis->del("lock:{$lockName}");
-                return true;
-            }
-            return false;
+            // ENTERPRISE FIX: Atomic check-and-delete using Lua script
+            $result = $this->redis->eval(
+                self::LUA_RELEASE_LOCK,
+                ["lock:{$lockName}", $owner],
+                1 // 1 key
+            );
+
+            return $result === 1;
         } catch (RedisException $e) {
             $this->handleError($e);
             return false;
@@ -656,7 +707,10 @@ LUA;
             'total_successes' => 0,
             'trip_count' => 0,
             'last_failure_time' => null,
+            'last_success_time' => null,
             'opened_at' => null,
+            'half_open_at' => null,
+            'closed_at' => null,
         ];
     }
 

@@ -567,6 +567,97 @@ class ModuleRegistry
     }
 
     /**
+     * Discover module from a specific path (workspace/local package)
+     *
+     * ENTERPRISE FIX: Support local/workspace packages that aren't in composer.lock
+     * This enables development workflows where packages are symlinked.
+     *
+     * @param string $path Path to the package directory (must contain composer.json)
+     * @return bool True if a module was discovered
+     */
+    public function discoverFromPath(string $path): bool
+    {
+        $composerJsonPath = rtrim($path, '/') . '/composer.json';
+
+        if (!file_exists($composerJsonPath)) {
+            $this->logger->warning('composer.json not found in path', [
+                'path' => $path,
+            ]);
+            return false;
+        }
+
+        try {
+            $composerJson = json_decode(file_get_contents($composerJsonPath), true);
+
+            if (!isset($composerJson['extra']['admin-panel']['module'])) {
+                $this->logger->debug('No admin-panel module definition in package', [
+                    'path' => $path,
+                    'name' => $composerJson['name'] ?? 'unknown',
+                ]);
+                return false;
+            }
+
+            $packageName = $composerJson['name'] ?? basename($path);
+            $moduleClass = $composerJson['extra']['admin-panel']['module'];
+            $priority = $composerJson['extra']['admin-panel']['priority'] ?? 50;
+
+            // Verify class exists
+            if (!class_exists($moduleClass)) {
+                $this->logger->warning('Module class not found (ensure autoload is configured)', [
+                    'package' => $packageName,
+                    'class' => $moduleClass,
+                ]);
+                return false;
+            }
+
+            // Verify interface implementation
+            if (!in_array(AdminModuleInterface::class, class_implements($moduleClass) ?: [])) {
+                $this->logger->warning('Module class does not implement AdminModuleInterface', [
+                    'package' => $packageName,
+                    'class' => $moduleClass,
+                ]);
+                return false;
+            }
+
+            // Register the module
+            $this->registerModule($packageName, $moduleClass, $priority);
+
+            $this->logger->info('Module discovered from path', [
+                'package' => $packageName,
+                'class' => $moduleClass,
+                'path' => $path,
+            ]);
+
+            return true;
+        } catch (\Exception $e) {
+            $this->logger->error('Failed to discover module from path', [
+                'path' => $path,
+                'error' => $e->getMessage(),
+            ]);
+            return false;
+        }
+    }
+
+    /**
+     * Discover modules from multiple workspace paths
+     *
+     * @param array<string> $paths Paths to package directories
+     * @return int Number of modules discovered
+     */
+    public function discoverFromPaths(array $paths): int
+    {
+        $discovered = 0;
+
+        foreach ($paths as $path) {
+            if ($this->discoverFromPath($path)) {
+                $discovered++;
+            }
+        }
+
+        return $discovered;
+    }
+
+    /**
      * Get all views paths from enabled modules
      *
      * @return array<string, string> Module name => views path

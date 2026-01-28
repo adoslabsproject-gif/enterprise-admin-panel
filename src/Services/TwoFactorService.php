@@ -100,6 +100,14 @@ final class TwoFactorService
                 'channel' => $channel,
             ]);
 
+            // Strategic log for 2FA code sent
+            log_info('email', '2FA code sent', [
+                'user_id' => $userId,
+                'method' => $method,
+                'channel' => $channel,
+                'expires_in' => self::CODE_EXPIRY,
+            ]);
+
             return [
                 'success' => true,
                 'method' => $method,
@@ -107,6 +115,14 @@ final class TwoFactorService
                 'expires_in' => self::CODE_EXPIRY,
             ];
         }
+
+        // Log failed 2FA send
+        log_warning('email', '2FA code send failed', [
+            'user_id' => $userId,
+            'method' => $method,
+            'channel' => $channel,
+            'error' => $result['error'] ?? 'Unknown error',
+        ]);
 
         return [
             'success' => false,

@@ -1225,3 +1225,96 @@ body {
 .eap-text-warning {
     color: var(--eap-neon-orange);
 }
+
+/* ============================================================
+ * Session Warning Dialog (CSP Compliant)
+ * ============================================================ */
+.session-warning-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.8);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 10000;
+    font-family: var(--eap-font-display);
+    backdrop-filter: blur(4px);
+}
+
+.session-warning-dialog {
+    background: var(--eap-surface);
+    border: 1px solid var(--eap-border);
+    border-radius: var(--eap-radius-lg);
+    padding: 2rem;
+    max-width: 400px;
+    text-align: center;
+    box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5), var(--eap-glow-cyan);
+}
+
+.session-warning-icon {
+    font-size: 3rem;
+    color: var(--eap-neon-orange);
+}
+
+.session-warning-title {
+    margin: 1rem 0 0.5rem;
+    font-size: 1.5rem;
+    color: var(--eap-text-primary);
+}
+
+.session-warning-text {
+    color: var(--eap-text-secondary);
+    margin: 0;
+}
+
+.session-warning-countdown {
+    font-size: 3rem;
+    font-weight: bold;
+    color: var(--eap-neon-red);
+    font-family: var(--eap-font-mono);
+    margin: 1rem 0;
+    text-shadow: 0 0 10px var(--eap-neon-red);
+}
+
+.session-warning-subtext {
+    color: var(--eap-text-muted);
+    font-size: 0.875rem;
+    margin-bottom: 1.5rem;
+}
+
+.session-warning-buttons {
+    display: flex;
+    gap: 0.75rem;
+}
+
+.session-btn {
+    flex: 1;
+    padding: 0.75rem 1rem;
+    border-radius: var(--eap-radius);
+    font-size: 1rem;
+    font-weight: 500;
+    cursor: pointer;
+    border: none;
+    transition: all 0.2s ease;
+}
+
+.session-btn-primary {
+    background: var(--eap-neon-cyan);
+    color: var(--eap-void);
+}
+
+.session-btn-primary:hover {
+    box-shadow: var(--eap-glow-cyan);
+    transform: translateY(-1px);
+}
+
+.session-btn-secondary {
+    background: var(--eap-elevated);
+    color: var(--eap-text-secondary);
+    border: 1px solid var(--eap-border);
+}
+
+.session-btn-secondary:hover {
+    background: var(--eap-border);
+    color: var(--eap-text-primary);
+}
