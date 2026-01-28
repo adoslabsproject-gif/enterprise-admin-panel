@@ -205,6 +205,7 @@ use AdosLabs\AdminPanel\Services\NotificationService;
 use AdosLabs\AdminPanel\Services\RecoveryService;
 use AdosLabs\AdminPanel\Services\SessionService;
 use AdosLabs\AdminPanel\Services\TwoFactorService;
+use AdosLabs\EnterprisePSR3Logger\LoggerFacade as Logger;
 
 // ============================================================================
 // Services - All use the database pool via db()
