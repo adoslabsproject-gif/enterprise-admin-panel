@@ -59,6 +59,9 @@ final class Bootstrap
         // Set timezone from environment or default
         self::configureTimezone();
 
+        // Configure PHP error logging
+        self::configurePhpErrorLog();
+
         // Register services
         self::registerDatabasePool($config['database'] ?? []);
         self::registerCacheManager($config['cache'] ?? []);
@@ -155,6 +158,42 @@ final class Bootstrap
         } catch (\Throwable $e) {
             date_default_timezone_set('Europe/Rome');
         }
+    }
+
+    /**
+     * Configure PHP error logging
+     *
+     * Reads LOG_PHP_ERRORS and PHP_ERROR_LOG from environment.
+     * If PHP_ERROR_LOG is not absolute, it's relative to storage/logs.
+     */
+    private static function configurePhpErrorLog(): void
+    {
+        $logPhpErrors = $_ENV['LOG_PHP_ERRORS'] ?? getenv('LOG_PHP_ERRORS') ?: null;
+
+        if ($logPhpErrors === null || !filter_var($logPhpErrors, FILTER_VALIDATE_BOOLEAN)) {
+            return;
+        }
+
+        // Get error log path
+        $errorLog = $_ENV['PHP_ERROR_LOG'] ?? getenv('PHP_ERROR_LOG') ?: null;
+
+        if ($errorLog === null) {
+            // Default to storage/logs/php_errors.log
+            $errorLog = self::$basePath . '/storage/logs/php_errors.log';
+        } elseif (!str_starts_with($errorLog, '/')) {
+            // Relative path - make it relative to storage/logs
+            $errorLog = self::$basePath . '/storage/logs/' . $errorLog;
+        }
+
+        // Ensure directory exists
+        $logDir = dirname($errorLog);
+        if (!is_dir($logDir)) {
+            @mkdir($logDir, 0755, true);
+        }
+
+        // Configure PHP error logging
+        ini_set('log_errors', '1');
+        ini_set('error_log', $errorLog);
     }
 
     /**
