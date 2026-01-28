@@ -590,7 +590,7 @@ try {
                 $expiresAt = new DateTimeImmutable($session['expires_at']);
                 $now = new DateTimeImmutable();
                 $expiresInSeconds = max(0, $expiresAt->getTimestamp() - $now->getTimestamp());
-                $shouldWarn = $expiresInSeconds <= 300 && $expiresInSeconds > 0;
+                $shouldWarn = $expiresInSeconds <= 3600 && $expiresInSeconds > 0; // TEST: 3600 for testing, change back to 300
 
                 $response = Response::json([
                     'active' => true,
