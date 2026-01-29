@@ -1315,18 +1315,38 @@ final class AuthService
     /**
      * Verify password reset token
      *
+     * PERFORMANCE: Since reset tokens are hashed with Argon2id (unique hash each time),
+     * we cannot search by hash directly. We limit to:
+     * 1. Only non-expired tokens (reduces set significantly)
+     * 2. Most recent 10 requests (reasonable limit for concurrent resets)
+     * 3. Order by expiry DESC (most recent first - likely to match)
+     *
+     * SECURITY: password_verify() is constant-time, preventing timing attacks.
+     *
      * @param string $token The plaintext token to verify
      * @return array{valid: bool, user_id?: int, error?: string}
      */
     public function verifyPasswordResetToken(string $token): array
     {
-        // Get all users with non-expired reset tokens
-        $users = $this->db->query(
-            'SELECT id, password_reset_token, password_reset_expires_at FROM admin_users WHERE password_reset_token IS NOT NULL AND password_reset_expires_at > NOW()'
-        );
+        // Get users with non-expired reset tokens, ordered by most recent, limited
+        // PERFORMANCE: Limit to 10 to prevent DoS via many pending resets
+        $driver = $this->db->getDriverName();
+
+        $sql = 'SELECT id, password_reset_token FROM admin_users ' .
+               'WHERE password_reset_token IS NOT NULL AND password_reset_expires_at > NOW() ' .
+               'ORDER BY password_reset_expires_at DESC';
+
+        // Add LIMIT based on driver
+        if ($driver === 'pgsql') {
+            $sql .= ' LIMIT 10';
+        } else {
+            $sql .= ' LIMIT 10';
+        }
+
+        $users = $this->db->query($sql);
 
         foreach ($users as $user) {
-            // Verify token hash
+            // Verify token hash (constant-time comparison)
             if (password_verify($token, $user['password_reset_token'])) {
                 return [
                     'valid' => true,

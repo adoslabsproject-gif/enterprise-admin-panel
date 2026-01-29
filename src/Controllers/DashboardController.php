@@ -162,47 +162,43 @@ final class DashboardController extends BaseController
         ];
 
         // Get Redis server info if connected
+        // SECURITY: Use existing Redis connection from pool - never create direct connections
+        // PERFORMANCE: Use DBSIZE instead of KEYS() which blocks Redis
         if ($redisConnected) {
             $redisManager = $this->db->getRedisStateManager();
-            if ($redisManager) {
+            if ($redisManager !== null) {
                 try {
-                    $redis = new \Redis();
-                    $host = $_ENV['REDIS_HOST'] ?? 'localhost';
-                    $port = (int) ($_ENV['REDIS_PORT'] ?? 6379);
-                    $password = $_ENV['REDIS_PASSWORD'] ?? null;
+                    // Get Redis instance from the pool (no credentials exposed)
+                    $redis = $redisManager->getRedis();
+                    if ($redis !== null) {
+                        $info = $redis->info();
+                        $result['server'] = [
+                            'version' => $info['redis_version'] ?? 'unknown',
+                            'uptime_days' => round(($info['uptime_in_seconds'] ?? 0) / 86400, 1),
+                            'connected_clients' => (int) ($info['connected_clients'] ?? 0),
+                            'used_memory' => $info['used_memory_human'] ?? '0B',
+                            'used_memory_peak' => $info['used_memory_peak_human'] ?? '0B',
+                            'total_commands' => (int) ($info['total_commands_processed'] ?? 0),
+                            'keyspace_hits' => (int) ($info['keyspace_hits'] ?? 0),
+                            'keyspace_misses' => (int) ($info['keyspace_misses'] ?? 0),
+                        ];
 
-                    $redis->connect($host, $port, 2.0);
-                    if ($password) {
-                        $redis->auth($password);
+                        // PERFORMANCE: Use DBSIZE instead of KEYS (O(1) vs O(N))
+                        // Note: This counts ALL keys, not just EAP keys, but it's non-blocking
+                        $result['total_keys'] = $redis->dbSize();
+
+                        // Circuit breaker state (specific key lookup is fine)
+                        $prefix = $redisManager->getPrefix();
+                        $database = $this->db->getConfig()->getDatabase();
+                        $circuitKey = $prefix . 'dbpool:circuit:' . $database;
+                        $circuitState = $redis->hGetAll($circuitKey);
+                        if (!empty($circuitState)) {
+                            $result['circuit_breaker'] = $circuitState;
+                        }
                     }
-
-                    $info = $redis->info();
-                    $result['server'] = [
-                        'version' => $info['redis_version'] ?? 'unknown',
-                        'uptime_days' => round(($info['uptime_in_seconds'] ?? 0) / 86400, 1),
-                        'connected_clients' => (int) ($info['connected_clients'] ?? 0),
-                        'used_memory' => $info['used_memory_human'] ?? '0B',
-                        'used_memory_peak' => $info['used_memory_peak_human'] ?? '0B',
-                        'total_commands' => (int) ($info['total_commands_processed'] ?? 0),
-                        'keyspace_hits' => (int) ($info['keyspace_hits'] ?? 0),
-                        'keyspace_misses' => (int) ($info['keyspace_misses'] ?? 0),
-                    ];
-
-                    // Get EAP key count
-                    $prefix = $_ENV['REDIS_PREFIX'] ?? 'eap:';
-                    $keys = $redis->keys($prefix . '*');
-                    $result['eap_keys'] = count($keys);
-
-                    // Circuit breaker state
-                    $circuitKey = $prefix . 'dbpool:circuit:' . ($_ENV['DB_DATABASE'] ?? 'admin_panel');
-                    $circuitState = $redis->hGetAll($circuitKey);
-                    if (!empty($circuitState)) {
-                        $result['circuit_breaker'] = $circuitState;
-                    }
-
-                    $redis->close();
                 } catch (\Throwable $e) {
-                    $result['error'] = $e->getMessage();
+                    // SECURITY: Don't expose connection details in error
+                    $result['error'] = 'Failed to retrieve Redis info';
                 }
             }
         }

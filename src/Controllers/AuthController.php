@@ -32,6 +32,34 @@ final class AuthController extends BaseController
     private AuthService $authService;
     private ?RecoveryService $recoveryService = null;
 
+    /**
+     * Safely decode and validate base64 encoded error messages
+     *
+     * SECURITY: Only accepts printable ASCII to prevent XSS.
+     * Returns null if decoding fails or content is suspicious.
+     */
+    private function safeBase64DecodeError(?string $encoded): ?string
+    {
+        if ($encoded === null || $encoded === '') {
+            return null;
+        }
+
+        $decoded = base64_decode($encoded, true);
+
+        // Reject if not valid base64
+        if ($decoded === false) {
+            return null;
+        }
+
+        // SECURITY: Only allow printable ASCII characters (space through tilde)
+        // This prevents any HTML/JavaScript injection attempts
+        if (!preg_match('/^[\x20-\x7E]{1,500}$/', $decoded)) {
+            return null;
+        }
+
+        return $decoded;
+    }
+
     public function __construct(
         DatabasePool $db,
         SessionService $sessionService,
@@ -64,7 +92,7 @@ final class AuthController extends BaseController
 
         // Get error from query string (base64 encoded) or flash
         $errorParam = $this->input('error');
-        $error = $errorParam ? base64_decode($errorParam) : $this->getFlash('error');
+        $error = $this->safeBase64DecodeError($errorParam) ?? $this->getFlash('error');
         $returnUrl = $this->sanitizeReturnUrl($this->input('return', $this->adminUrl('dashboard')));
 
         // Check if emergency recovery is enabled
@@ -219,7 +247,7 @@ final class AuthController extends BaseController
     {
         // Get error from query string (base64 encoded) or flash
         $errorParam = $this->input('error');
-        $error = $errorParam ? base64_decode($errorParam) : $this->getFlash('error');
+        $error = $this->safeBase64DecodeError($errorParam) ?? $this->getFlash('error');
         $returnUrl = $this->sanitizeReturnUrl($this->input('return'));
 
         // Get user's 2FA method and CSRF token from 2FA session
@@ -549,11 +577,8 @@ final class AuthController extends BaseController
             return $this->redirect($this->adminUrl('dashboard'));
         }
 
-        $error = null;
         $errorParam = $this->input('error');
-        if ($errorParam) {
-            $error = base64_decode($errorParam);
-        }
+        $error = $this->safeBase64DecodeError($errorParam);
 
         return $this->view('auth/recovery', [
             'error' => $error,

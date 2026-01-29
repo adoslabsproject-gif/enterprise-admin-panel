@@ -199,6 +199,31 @@ LUA;
     }
 
     /**
+     * Get the underlying Redis instance (for read operations only)
+     *
+     * SECURITY: This exposes the Redis connection for monitoring/metrics.
+     * Do not use for write operations - use the atomic methods instead.
+     *
+     * @return Redis|null The Redis instance or null if not connected
+     */
+    public function getRedis(): ?Redis
+    {
+        if (!$this->connected || $this->redis === null) {
+            return null;
+        }
+
+        return $this->redis;
+    }
+
+    /**
+     * Get the key prefix used for all Redis keys
+     */
+    public function getPrefix(): string
+    {
+        return $this->prefix;
+    }
+
+    /**
      * Create from array configuration
      */
     public static function fromArray(array $config): self

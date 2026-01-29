@@ -172,10 +172,28 @@ final class SessionService
 
             if ($lastActivity >= $extensionWindowStart) {
                 // User was active in the last 5 minutes before expiry - extend session
-                $this->extend($sessionId, $session);
-                $this->logger->info('Session extended due to recent activity', [
-                    'session_id' => substr($sessionId, 0, 16) . '...',
-                ]);
+                $extended = $this->extend($sessionId, $session);
+
+                if ($extended) {
+                    $this->logger->info('Session extended due to recent activity', [
+                        'session_id' => substr($sessionId, 0, 16) . '...',
+                    ]);
+                }
+
+                // IMPORTANT: Refetch session directly (no recursion) to get updated data
+                // Whether we extended or another request did, we need fresh data
+                $freshSessions = $this->db->query(
+                    'SELECT s.*, u.email, u.name, u.role, u.permissions, u.avatar_url FROM admin_sessions s JOIN admin_users u ON s.user_id = u.id WHERE s.id = ?',
+                    [$sessionId]
+                );
+
+                if (empty($freshSessions)) {
+                    return null;
+                }
+
+                $freshSession = $freshSessions[0];
+                $freshSession['payload'] = json_decode($freshSession['payload'], true) ?? [];
+                return $freshSession;
             } else {
                 // Session expired with no recent activity
                 $this->destroy($sessionId);
