@@ -287,6 +287,60 @@ See the [`docs/`](docs/) folder:
 
 ---
 
+## Development Setup (Package Maintainers)
+
+If you're developing the package itself (not using it as a dependency), follow these steps:
+
+### Prerequisites
+
+Your test project must have **both** packages installed:
+
+```json
+{
+    "require": {
+        "ados-labs/enterprise-admin-panel": "*",
+        "ados-labs/enterprise-psr3-logger": "*"
+    },
+    "repositories": [
+        {"type": "path", "url": "/path/to/enterprise-admin-panel", "options": {"symlink": true}},
+        {"type": "path", "url": "/path/to/enterprise-psr3-logger", "options": {"symlink": true}}
+    ]
+}
+```
+
+### Get Admin URL (Development)
+
+**IMPORTANT:** Run the command from your **test project directory**, not from the package directory!
+
+```bash
+# CORRECT - from test project directory
+cd /path/to/myproject
+php /path/to/enterprise-admin-panel/elf/url-get.php \
+  --token='master-xxxxx' \
+  --email='admin@example.com' \
+  --password='your_password'
+
+# WRONG - this will fail with "Class not found"
+cd /path/to/enterprise-admin-panel
+php elf/url-get.php --token=... --email=... --password=...
+```
+
+**Why?** The CLI scripts need access to both `enterprise-admin-panel` AND `enterprise-psr3-logger` classes. Your test project's `vendor/autoload.php` has both, while the package's own `vendor/` only has its direct dependencies.
+
+### After Modifying composer.json in the Package
+
+If you change `composer.json` in `enterprise-psr3-logger` or `enterprise-admin-panel` (e.g., removing/adding autoload files), you **must** reinstall in your test project:
+
+```bash
+cd /path/to/myproject
+rm -rf vendor composer.lock
+composer install
+```
+
+This refreshes the autoloader with the new configuration.
+
+---
+
 ## Troubleshooting
 
 ### "DB_PASSWORD is required"
@@ -299,14 +353,47 @@ Expected. Use the secret URL from installation.
 
 ### Lost the admin URL?
 
+**If using as dependency:**
 ```bash
 php vendor/ados-labs/enterprise-admin-panel/elf/url-get.php \
+  --token=MASTER_TOKEN --email=EMAIL --password=PASSWORD
+```
+
+**If developing the package:**
+```bash
+cd /path/to/myproject  # Your test project with both packages
+php /path/to/enterprise-admin-panel/elf/url-get.php \
   --token=MASTER_TOKEN --email=EMAIL --password=PASSWORD
 ```
 
 ### 2FA codes not arriving
 
 Check Mailpit: http://localhost:8025
+
+### "Class not found" errors in CLI commands
+
+**Error:** `Class "AdosLabs\AdminPanel\Bootstrap" not found` or `Class "AdosLabs\EnterprisePSR3Logger\LoggerFacade" not found`
+
+**Cause:** You're running the command from the wrong directory. The package's own `vendor/` doesn't include all required dependencies.
+
+**Solution:** Run from your test project directory:
+```bash
+cd /path/to/myproject  # Has both packages installed
+php /path/to/enterprise-admin-panel/elf/url-get.php --token=... --email=... --password=...
+```
+
+### "Failed to open stream: should_log_stub.php"
+
+**Error:** `require(...should_log_stub.php): Failed to open stream: No such file or directory`
+
+**Cause:** The `composer.lock` file has stale autoload configuration after the package was updated.
+
+**Solution:** Reinstall dependencies:
+```bash
+cd /path/to/myproject
+rm -rf vendor composer.lock
+composer install
+```
 
 ### Connection refused
 

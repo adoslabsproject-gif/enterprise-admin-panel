@@ -35,17 +35,19 @@ if ($projectRoot === null) {
     $projectRoot = $packageRoot;
 }
 
-// Autoload
-$autoloadPaths = [
-    $projectRoot . '/vendor/autoload.php',
-    $packageRoot . '/vendor/autoload.php',
-];
+// Autoload - ALWAYS load package autoloader first (contains AdminPanel classes)
+// Then optionally load project autoloader for additional classes
+$packageAutoload = $packageRoot . '/vendor/autoload.php';
+$projectAutoload = $projectRoot . '/vendor/autoload.php';
 
-foreach ($autoloadPaths as $path) {
-    if (file_exists($path)) {
-        require_once $path;
-        break;
-    }
+if (file_exists($packageAutoload)) {
+    require_once $packageAutoload;
+}
+
+// If project is different from package, also load project autoloader
+// This enables project-specific classes/overrides
+if ($projectRoot !== $packageRoot && file_exists($projectAutoload)) {
+    require_once $projectAutoload;
 }
 
 use AdosLabs\AdminPanel\Bootstrap;

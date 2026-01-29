@@ -107,10 +107,13 @@ final class CsrfMiddleware implements MiddlewareInterface
             return hash_hmac(self::HMAC_ALGO, 'csrf-protection-key', $appKey);
         }
 
-        // Last resort: generate from PHP's random
-        // Note: This will cause issues in load-balanced environments
-        // In production, always set CSRF_SECRET_KEY or EAP_MASTER_TOKEN
-        return hash(self::HMAC_ALGO, random_bytes(32));
+        // Last resort: FAIL - do not generate random key in production
+        // Random keys will be different across PHP workers, breaking CSRF validation
+        throw new \RuntimeException(
+            'CSRF secret key not configured. Set one of: CSRF_SECRET_KEY, EAP_CSRF_SECRET, ' .
+            'EAP_MASTER_TOKEN, MASTER_TOKEN, EAP_APP_KEY, or APP_KEY environment variable. ' .
+            'Without a consistent key, CSRF tokens will fail in multi-worker environments.'
+        );
     }
 
     /**
@@ -328,7 +331,9 @@ final class CsrfMiddleware implements MiddlewareInterface
             return false;
         }
 
-        return true;
+        // SECURITY: This line should never be reached (all cases handled above)
+        // If we somehow get here, fail closed for security
+        return false;
     }
 
     /**

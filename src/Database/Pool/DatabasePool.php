@@ -67,6 +67,12 @@ final class DatabasePool
     private bool $redisEnabled;
 
     /**
+     * Static flag to ensure startup logs only appear once per process
+     * @var array<string, bool>
+     */
+    private static array $startupLogged = [];
+
+    /**
      * Prepared statement cache - per connection to avoid PDO cross-contamination
      * Structure: [connection_identifier => [sql_hash => PDOStatement]]
      * @var array<string, array<string, PDOStatement>>
@@ -163,7 +169,12 @@ final class DatabasePool
         $this->poolMutex = @fopen($lockFile, 'c');
         if ($this->poolMutex === false) {
             $this->poolMutex = null;
-            error_log('[DB Pool] Warning: Could not initialize pool mutex, using non-atomic mode');
+            // Log warning only once per database per process
+            $logKey = 'mutex_failed:' . $this->config->getDatabase();
+            if (!isset(self::$startupLogged[$logKey])) {
+                self::$startupLogged[$logKey] = true;
+                error_log('[DB Pool] Warning: Could not initialize pool mutex, using non-atomic mode');
+            }
         }
     }
 
@@ -216,13 +227,28 @@ final class DatabasePool
                 // Register as active worker
                 $this->metricsCollector->heartbeat();
 
-                error_log('[DB Pool] Redis enabled - using distributed state');
+                // Log only ONCE per database per process (not every request)
+                $logKey = 'redis_enabled:' . $this->config->getDatabase();
+                if (!isset(self::$startupLogged[$logKey])) {
+                    self::$startupLogged[$logKey] = true;
+                    error_log('[DB Pool] Redis enabled - using distributed state');
+                }
             } else {
-                error_log('[DB Pool] Redis connection failed - using local state');
+                // Log failure only once per database per process
+                $logKey = 'redis_failed:' . $this->config->getDatabase();
+                if (!isset(self::$startupLogged[$logKey])) {
+                    self::$startupLogged[$logKey] = true;
+                    error_log('[DB Pool] Redis connection failed - using local state');
+                }
                 $this->redisState = null;
             }
         } catch (\Throwable $e) {
-            error_log('[DB Pool] Redis initialization failed: ' . $e->getMessage());
+            // Log error only once per database per process
+            $logKey = 'redis_error:' . $this->config->getDatabase();
+            if (!isset(self::$startupLogged[$logKey])) {
+                self::$startupLogged[$logKey] = true;
+                error_log('[DB Pool] Redis initialization failed: ' . $e->getMessage());
+            }
             $this->redisState = null;
             $this->distributedCircuitBreaker = null;
             $this->metricsCollector = null;

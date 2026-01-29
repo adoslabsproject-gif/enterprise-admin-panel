@@ -65,7 +65,7 @@ use Psr\Log\NullLogger;
  * @version 1.0.0
  * @since 2026-01-24
  */
-class ModuleRegistry
+final class ModuleRegistry
 {
     /**
      * Registered modules
