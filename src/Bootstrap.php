@@ -121,11 +121,18 @@ final class Bootstrap
         // Fallback: walk up from __DIR__ but skip package's own composer.json
         $dir = __DIR__;
         while ($dir !== '/') {
-            if (file_exists($dir . '/composer.json')) {
-                $composerJson = json_decode(file_get_contents($dir . '/composer.json'), true);
-                // Skip if this is the package itself
-                if (($composerJson['name'] ?? '') !== 'ados-labs/enterprise-admin-panel') {
-                    return $dir;
+            $composerPath = $dir . '/composer.json';
+            if (file_exists($composerPath)) {
+                $content = file_get_contents($composerPath);
+                if ($content !== false) {
+                    $composerJson = json_decode($content, true);
+                    // Check for JSON parse errors
+                    if (json_last_error() === JSON_ERROR_NONE && is_array($composerJson)) {
+                        // Skip if this is the package itself
+                        if (($composerJson['name'] ?? '') !== 'ados-labs/enterprise-admin-panel') {
+                            return $dir;
+                        }
+                    }
                 }
             }
             $dir = dirname($dir);
@@ -198,6 +205,14 @@ final class Bootstrap
 
     /**
      * Load environment variables from .env file
+     *
+     * ENTERPRISE: Robust .env parser with:
+     * - Comment support (# prefix)
+     * - Quoted values (single/double quotes)
+     * - Type casting (true, false, null, empty)
+     * - Escape sequence handling in double quotes
+     * - Whitespace tolerance
+     * - Invalid line skipping (no crash)
      */
     private static function loadEnvironment(): void
     {
@@ -207,42 +222,98 @@ final class Bootstrap
             return;
         }
 
-        $lines = file($envPath, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES);
+        $content = file_get_contents($envPath);
+        if ($content === false) {
+            return;
+        }
 
-        foreach ($lines as $line) {
+        // Split into lines, preserving empty lines for accurate error reporting
+        $lines = explode("\n", $content);
+
+        foreach ($lines as $lineNumber => $line) {
+            // Remove carriage return (Windows compatibility)
+            $line = rtrim($line, "\r");
+
+            // Trim leading/trailing whitespace
             $line = trim($line);
 
+            // Skip empty lines and comments
             if ($line === '' || str_starts_with($line, '#')) {
                 continue;
             }
 
-            if (!str_contains($line, '=')) {
+            // Must contain = sign
+            $equalsPos = strpos($line, '=');
+            if ($equalsPos === false) {
                 continue;
             }
 
-            [$key, $value] = explode('=', $line, 2);
-            $key = trim($key);
-            $value = trim($value);
+            // Extract key and value
+            $key = trim(substr($line, 0, $equalsPos));
+            $value = substr($line, $equalsPos + 1);
 
-            // Remove quotes
-            if (preg_match('/^(["\'])(.*)\\1$/', $value, $matches)) {
-                $value = $matches[2];
+            // Validate key (must be valid env var name)
+            if (!preg_match('/^[A-Za-z_][A-Za-z0-9_]*$/', $key)) {
+                continue;
             }
 
-            // Type casting
-            $value = match (strtolower($value)) {
-                'true', '(true)' => true,
-                'false', '(false)' => false,
-                'null', '(null)' => null,
-                'empty', '(empty)' => '',
-                default => $value,
-            };
+            // Process value
+            $value = self::parseEnvValue($value);
+
+            // Type casting for string values
+            if (is_string($value)) {
+                $lowerValue = strtolower($value);
+                $value = match ($lowerValue) {
+                    'true', '(true)' => true,
+                    'false', '(false)' => false,
+                    'null', '(null)' => null,
+                    'empty', '(empty)' => '',
+                    default => $value,
+                };
+            }
 
             $_ENV[$key] = $value;
             if (is_string($value) || is_numeric($value)) {
                 putenv("{$key}={$value}");
             }
         }
+    }
+
+    /**
+     * Parse a single .env value with proper quote handling
+     */
+    private static function parseEnvValue(string $value): string
+    {
+        $value = trim($value);
+
+        if ($value === '') {
+            return '';
+        }
+
+        // Double-quoted value: process escape sequences
+        if (str_starts_with($value, '"') && str_ends_with($value, '"') && strlen($value) >= 2) {
+            $value = substr($value, 1, -1);
+            // Process escape sequences
+            $value = str_replace(
+                ['\\n', '\\r', '\\t', '\\"', '\\\\'],
+                ["\n", "\r", "\t", '"', '\\'],
+                $value
+            );
+            return $value;
+        }
+
+        // Single-quoted value: no escape processing (literal)
+        if (str_starts_with($value, "'") && str_ends_with($value, "'") && strlen($value) >= 2) {
+            return substr($value, 1, -1);
+        }
+
+        // Unquoted value: strip inline comments
+        $commentPos = strpos($value, ' #');
+        if ($commentPos !== false) {
+            $value = rtrim(substr($value, 0, $commentPos));
+        }
+
+        return $value;
     }
 
     /**

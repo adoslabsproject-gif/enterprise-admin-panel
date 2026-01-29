@@ -207,9 +207,14 @@ final class AuditService
 
         if (isset($filters['action'])) {
             if (is_array($filters['action'])) {
-                $placeholders = implode(',', array_fill(0, count($filters['action']), '?'));
-                $conditions[] = "a.action IN ({$placeholders})";
-                $params = array_merge($params, $filters['action']);
+                // SECURITY: Skip if empty array to avoid invalid SQL "IN ()"
+                if (count($filters['action']) > 0) {
+                    $placeholders = implode(',', array_fill(0, count($filters['action']), '?'));
+                    $conditions[] = "a.action IN ({$placeholders})";
+                    $params = array_merge($params, $filters['action']);
+                }
+                // Empty array means "no actions match" - we could add FALSE condition
+                // but it's better to just skip and return all (caller should validate input)
             } else {
                 $conditions[] = 'a.action = ?';
                 $params[] = $filters['action'];

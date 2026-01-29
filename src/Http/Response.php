@@ -75,12 +75,31 @@ final class Response implements ResponseInterface
 
     /**
      * Create file download response
+     *
+     * ENTERPRISE: RFC 5987 compliant Content-Disposition header.
+     * Includes both ASCII fallback and UTF-8 encoded filename for
+     * proper handling of international characters in filenames.
      */
     public static function download(string $content, string $filename, string $contentType = 'application/octet-stream'): self
     {
+        // Sanitize filename: remove path separators and null bytes
+        $filename = str_replace(['/', '\\', "\0"], '', $filename);
+
+        // Create ASCII-safe fallback (replace non-ASCII with underscore)
+        $asciiFilename = preg_replace('/[^\x20-\x7E]/', '_', $filename);
+        $asciiFilename = str_replace('"', '\\"', $asciiFilename);
+
+        // RFC 5987: UTF-8 encoded filename for modern browsers
+        // Format: filename*=UTF-8''url_encoded_filename
+        $utf8Filename = rawurlencode($filename);
+
+        // Content-Disposition with both fallback and UTF-8 filename
+        // Modern browsers use filename*, older ones fall back to filename
+        $disposition = "attachment; filename=\"{$asciiFilename}\"; filename*=UTF-8''{$utf8Filename}";
+
         $headers = [
             'Content-Type' => [$contentType],
-            'Content-Disposition' => ['attachment; filename="' . addslashes($filename) . '"'],
+            'Content-Disposition' => [$disposition],
             'Content-Length' => [(string) strlen($content)],
         ];
 

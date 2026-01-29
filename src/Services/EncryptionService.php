@@ -42,6 +42,12 @@ final class EncryptionService
      */
     private string $key;
 
+    /**
+     * Minimum entropy required for non-hex keys (in bytes)
+     * 16 bytes = 128 bits minimum (still secure, but we prefer 256)
+     */
+    private const MIN_KEY_LENGTH = 16;
+
     public function __construct(?string $key = null)
     {
         $key = $key ?? getenv('APP_KEY') ?: $this->loadKeyFromEnv();
@@ -52,15 +58,30 @@ final class EncryptionService
             );
         }
 
-        // Key should be 64 hex chars (32 bytes = 256 bits)
+        // Key should be 64 hex chars (32 bytes = 256 bits) - RECOMMENDED
         if (strlen($key) === 64 && ctype_xdigit($key)) {
             $this->key = hex2bin($key);
-        } elseif (strlen($key) === 32) {
-            // Already binary
+        } elseif (strlen($key) === 32 && !ctype_print($key)) {
+            // Already binary 256-bit key
             $this->key = $key;
         } else {
-            // Hash the key to get consistent 256 bits
-            $this->key = hash('sha256', $key, true);
+            // SECURITY: Validate minimum key length to prevent weak keys
+            if (strlen($key) < self::MIN_KEY_LENGTH) {
+                throw new RuntimeException(
+                    'APP_KEY is too short (minimum ' . self::MIN_KEY_LENGTH . ' characters). ' .
+                    'Generate a secure key with: php -r "echo bin2hex(random_bytes(32));"'
+                );
+            }
+
+            // Log warning about non-standard key format
+            Logger::channel('security')->warning('APP_KEY is not in recommended format (64 hex chars)', [
+                'key_length' => strlen($key),
+                'recommendation' => 'Generate with: php -r "echo bin2hex(random_bytes(32));"',
+            ]);
+
+            // Derive 256-bit key using HKDF (better than raw SHA256)
+            // HKDF extracts entropy and expands to desired length
+            $this->key = hash_hkdf('sha256', $key, 32, 'aes-256-gcm-encryption');
         }
     }
 

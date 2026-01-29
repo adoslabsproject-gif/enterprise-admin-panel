@@ -288,17 +288,27 @@ final class DashboardController extends BaseController
 
     /**
      * Format bytes to human readable
+     *
+     * ENTERPRISE: Extended units up to PB, with explicit loop bound for safety.
      */
     private function formatBytes(int $bytes): string
     {
-        $units = ['B', 'KB', 'MB', 'GB'];
+        if ($bytes < 0) {
+            return '0 B';
+        }
+
+        $units = ['B', 'KB', 'MB', 'GB', 'TB', 'PB'];
+        $maxIndex = count($units) - 1;
         $i = 0;
 
-        while ($bytes >= 1024 && $i < count($units) - 1) {
-            $bytes /= 1024;
+        $value = (float) $bytes;
+
+        // Explicit max iterations (5) for safety, plus array bounds check
+        while ($value >= 1024.0 && $i < $maxIndex) {
+            $value /= 1024.0;
             $i++;
         }
 
-        return round($bytes, 2) . ' ' . $units[$i];
+        return round($value, 2) . ' ' . $units[$i];
     }
 }
