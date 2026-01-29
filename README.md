@@ -23,6 +23,21 @@ This panel generates URLs like:
 
 ---
 
+## Features Overview
+
+| Feature | Description |
+|---------|-------------|
+| **Cryptographic URLs** | 128-bit entropy, impossible to guess |
+| **Two-Factor Auth** | Email, Telegram, Discord, Slack, TOTP |
+| **Session Management** | Database-backed, 256-bit session IDs |
+| **CSRF Protection** | Per-session tokens, constant-time comparison |
+| **Database Pool** | Connection pooling with circuit breaker |
+| **Audit Logging** | All actions logged with IP, user agent |
+| **Emergency Access** | Recovery tokens for lockout scenarios |
+| **Multi-Channel Notifications** | URL rotation alerts, security alerts |
+
+---
+
 ## Requirements
 
 - PHP 8.2+
@@ -140,7 +155,17 @@ REDIS_PASSWORD=your_redis_password
 # SMTP (Mailpit for development)
 SMTP_HOST=localhost
 SMTP_PORT=1025
-SMTP_FROM=admin@localhost
+SMTP_FROM_EMAIL=admin@localhost
+SMTP_FROM_NAME=Enterprise Admin
+
+# Telegram (optional)
+# TELEGRAM_BOT_TOKEN=123456:ABC-DEF...
+
+# Discord (optional)
+# DISCORD_WEBHOOK_URL=https://discord.com/api/webhooks/...
+
+# Slack (optional)
+# SLACK_WEBHOOK_URL=https://hooks.slack.com/services/...
 EOF
 ```
 
@@ -167,6 +192,390 @@ Open the URL shown in Step 6 (NOT `/admin`!)
 
 ---
 
+## Two-Factor Authentication (2FA)
+
+### Supported Methods
+
+| Method | Configuration | Description |
+|--------|--------------|-------------|
+| **Email** | Default | OTP sent via SMTP |
+| **TOTP** | User setup | Google Authenticator, Authy, etc. |
+| **Telegram** | Bot token required | OTP sent via Telegram bot |
+| **Discord** | Webhook required | OTP sent via Discord webhook |
+| **Slack** | Webhook required | OTP sent via Slack webhook |
+
+### Email 2FA (Default)
+
+Email 2FA works out of the box with Mailpit (development) or any SMTP server.
+
+```env
+# .env
+SMTP_HOST=localhost
+SMTP_PORT=1025
+SMTP_FROM_EMAIL=admin@localhost
+```
+
+**Development:** View codes at http://localhost:8025 (Mailpit)
+
+### TOTP Setup
+
+Users can enable TOTP from their profile:
+
+1. Click "Enable Authenticator App"
+2. Scan QR code with Google Authenticator/Authy
+3. Enter verification code to confirm
+4. Save 8 recovery codes (XXXX-XXXX format)
+
+```php
+// Programmatic TOTP setup
+$twoFactorService = $container->get(TwoFactorService::class);
+
+// Generate secret and QR code
+$setup = $twoFactorService->setupTOTP($userId);
+// Returns: ['secret' => 'BASE32...', 'qr_uri' => 'otpauth://totp/...', 'recovery_codes' => [...]]
+
+// Enable after user verifies code
+$twoFactorService->enable($userId, 'totp', $verificationCode);
+```
+
+### Telegram 2FA
+
+1. Create a Telegram bot via [@BotFather](https://t.me/botfather)
+2. Get the bot token
+3. User sends `/start` to your bot
+4. Get user's chat ID from the message
+
+```env
+# .env
+TELEGRAM_BOT_TOKEN=123456789:ABC-DEF1234ghIkl-zyx57W2v1u123ew11
+```
+
+```php
+// Configure user's Telegram
+$notificationService->configureUserChannel($userId, 'telegram', $chatId);
+```
+
+### Discord 2FA
+
+1. Create a Discord webhook in your server settings
+2. Add webhook URL to `.env`
+3. Configure user's Discord ID
+
+```env
+# .env
+DISCORD_WEBHOOK_URL=https://discord.com/api/webhooks/123456789/abcdef...
+```
+
+```php
+// Configure user's Discord
+$notificationService->configureUserChannel($userId, 'discord', $discordUserId);
+```
+
+### Slack 2FA
+
+1. Create Slack Incoming Webhook in your workspace
+2. Add webhook URL to `.env`
+3. Configure user's Slack ID
+
+```env
+# .env
+SLACK_WEBHOOK_URL=https://hooks.slack.com/services/YOUR/WEBHOOK/URL
+```
+
+```php
+// Configure user's Slack
+$notificationService->configureUserChannel($userId, 'slack', $slackUserId);
+```
+
+### Enable Notification Channels in Database
+
+Enable channels via admin config:
+
+```sql
+-- Enable Telegram notifications
+INSERT INTO admin_config (key, value) VALUES ('notification_telegram_enabled', 'true');
+
+-- Enable Discord notifications
+INSERT INTO admin_config (key, value) VALUES ('notification_discord_enabled', 'true');
+
+-- Enable Slack notifications
+INSERT INTO admin_config (key, value) VALUES ('notification_slack_enabled', 'true');
+```
+
+### Recovery Codes
+
+When TOTP is enabled, 8 recovery codes are generated:
+
+- Format: `XXXX-XXXX` (hex)
+- One-time use
+- Stored as bcrypt hashes
+- Can be regenerated from profile
+
+---
+
+## Session Management
+
+### Features
+
+- **256-bit session IDs** - Cryptographically secure
+- **Database-backed** - No filesystem dependency
+- **60-minute lifetime** - With activity-based extension
+- **Multi-device tracking** - View/revoke sessions
+
+### Session Lifecycle
+
+1. Login → 60-minute session created
+2. Activity within last 5 minutes before expiry → Extended by 60 minutes
+3. No activity → Session expires
+4. Explicit logout → Session destroyed
+
+### Configuration
+
+```php
+// Default configuration
+const SESSION_ID_BYTES = 32;            // 256-bit
+const SESSION_MAX_LIFETIME_MINUTES = 60;
+const SESSION_EXTENSION_WINDOW_MINUTES = 5;
+const SESSION_EXTENSION_AMOUNT_MINUTES = 60;
+const CSRF_TOKEN_BYTES = 32;
+```
+
+### API
+
+```php
+$sessionService = $container->get(SessionService::class);
+
+// Create session after login
+$sessionId = $sessionService->create($userId, $clientIp, $userAgent);
+
+// Validate session
+$session = $sessionService->validate($sessionId);
+
+// Get all user sessions
+$sessions = $sessionService->getUserSessions($userId);
+
+// Destroy all sessions except current
+$sessionService->destroyAllExcept($userId, $currentSessionId);
+
+// Flash messages
+$sessionService->flash($sessionId, 'success', 'Password changed');
+$message = $sessionService->getFlash($sessionId, 'success');
+
+// CSRF token
+$token = $sessionService->getCsrfToken($sessionId);
+$valid = $sessionService->verifyCsrfToken($sessionId, $submittedToken);
+```
+
+---
+
+## CLI Commands
+
+All commands are in `vendor/ados-labs/enterprise-admin-panel/elf/`.
+
+**All commands require triple authentication:**
+- `--token=` Master CLI token
+- `--email=` Admin email
+- `--password=` Admin password
+
+### Available Commands
+
+| Command | Description |
+|---------|-------------|
+| `install.php` | First-time installation |
+| `url-get.php` | Retrieve current admin URL |
+| `url-rotate.php` | Rotate admin URL (security) |
+| `password-change.php` | Change admin password |
+| `token-master-regenerate.php` | Regenerate master CLI token |
+| `token-emergency-create.php` | Create emergency access token |
+| `token-emergency-use.php` | Use emergency token for access |
+| `cache-clear.php` | Clear application cache |
+| `opcache-setup.php` | Setup OPcache configuration |
+
+### Get Admin URL
+
+```bash
+php vendor/ados-labs/enterprise-admin-panel/elf/url-get.php \
+  --token=MASTER_TOKEN \
+  --email=admin@example.com \
+  --password=YOUR_PASSWORD
+```
+
+### Change Password
+
+```bash
+php vendor/ados-labs/enterprise-admin-panel/elf/password-change.php \
+  --token=MASTER_TOKEN \
+  --email=admin@example.com \
+  --password=CURRENT \
+  --new-password=NEW
+```
+
+**Password Requirements:**
+- Minimum 12 characters
+- At least 1 number
+- At least 1 special character (!@#$%^&*-_=+)
+
+### Rotate Admin URL
+
+```bash
+php vendor/ados-labs/enterprise-admin-panel/elf/url-rotate.php \
+  --token=MASTER_TOKEN \
+  --email=admin@example.com \
+  --password=YOUR_PASSWORD \
+  --reason="Scheduled rotation"
+```
+
+**Effects:**
+- New 128-bit URL generated
+- Old URL returns 404
+- All admins notified via their preferred channel
+
+### Create Emergency Access Token
+
+```bash
+php vendor/ados-labs/enterprise-admin-panel/elf/token-emergency-create.php \
+  --token=MASTER_TOKEN \
+  --email=admin@example.com \
+  --password=PASSWORD \
+  --name="Safe deposit box" \
+  --expires=365
+```
+
+**Security:**
+- ONE-TIME USE
+- Bypasses password AND 2FA
+- Store offline (print and secure)
+
+### Use Emergency Token
+
+```bash
+php vendor/ados-labs/enterprise-admin-panel/elf/token-emergency-use.php \
+  --token=EMERGENCY_TOKEN
+```
+
+Or via browser:
+```
+http://localhost:8080/emergency-login?token=YOUR_EMERGENCY_TOKEN
+```
+
+---
+
+## Notification System
+
+### Channels
+
+| Channel | Configuration | Use Cases |
+|---------|--------------|-----------|
+| **Email** | SMTP settings | 2FA codes, URL rotation, alerts |
+| **Telegram** | Bot token | 2FA codes, security alerts |
+| **Discord** | Webhook URL | 2FA codes, team notifications |
+| **Slack** | Webhook URL | 2FA codes, team notifications |
+
+### Notification Types
+
+- **2FA Verification Codes** - 6-digit OTP, 5-minute expiry
+- **URL Rotation** - New URL, reason, timestamp
+- **Security Alerts** - Failed logins, suspicious activity
+- **Recovery Tokens** - Emergency access instructions
+
+### API
+
+```php
+$notificationService = $container->get(NotificationService::class);
+
+// Send 2FA code
+$result = $notificationService->send2FACode($userId, $code, 'telegram');
+
+// Send security alert
+$notificationService->sendSecurityAlert($userId, 'Failed Login', [
+    'ip' => $clientIp,
+    'attempts' => 5,
+]);
+
+// Test channel connectivity
+$result = $notificationService->testChannel('telegram', $chatId);
+
+// Configure user channel
+$notificationService->configureUserChannel($userId, 'discord', $discordUserId);
+```
+
+---
+
+## Security Features
+
+### URL Security
+
+| Feature | Traditional | This Panel |
+|---------|-------------|------------|
+| URL Pattern | `/admin` | `/x-{random 32 hex}` |
+| Entropy | 0 bits | 128 bits |
+| Brute Force | Easy | 2^128 combinations |
+
+### CSRF Protection
+
+- Per-session CSRF tokens (256-bit)
+- Constant-time comparison (`hash_equals`)
+- Auto-regeneration available
+
+```php
+// In views
+<?= $csrf_input ?>
+<!-- Outputs: <input type="hidden" name="_csrf" value="..."> -->
+
+// Validation (automatic in middleware)
+$valid = $sessionService->verifyCsrfToken($sessionId, $_POST['_csrf']);
+```
+
+### Audit Logging
+
+All actions are logged:
+
+```php
+$auditService->log('login_success', $userId, [
+    'ip' => $clientIp,
+    'method' => '2fa_totp',
+]);
+```
+
+Logged events:
+- `login_success`, `login_failed`
+- `2fa_enabled`, `2fa_disabled`
+- `password_changed`
+- `session_created`, `session_destroyed`
+- `url_rotated`
+- `emergency_token_created`, `emergency_token_used`
+
+### Database Pool
+
+- Connection pooling with LIFO reuse
+- Circuit breaker (trips on failures, auto-recovers)
+- Distributed state via Redis
+- Metrics and monitoring
+
+```php
+$pool = $container->get(DatabasePool::class);
+
+// Execute query with automatic connection management
+$users = $pool->query('SELECT * FROM admin_users WHERE id = ?', [$id]);
+
+// Pool stats
+$stats = $pool->getStats();
+// ['active' => 2, 'idle' => 8, 'total' => 10, 'circuit' => 'CLOSED']
+```
+
+---
+
+## Dashboard Features
+
+The admin dashboard includes real-time metrics:
+
+- **Database Pool** - Connections, queries, circuit breaker state
+- **Redis** - Workers, memory, commands
+- **Audit Log** - Recent activity
+- **System Info** - PHP version, memory usage
+
+---
+
 ## Project Structure
 
 After installation:
@@ -189,89 +598,12 @@ myproject/
 
 ## Services
 
-| Service    | URL                    | Purpose            |
-|------------|------------------------|--------------------|
-| PostgreSQL | localhost:5432         | Database           |
-| Redis      | localhost:6379         | Circuit breaker    |
-| Mailpit    | http://localhost:8025  | View 2FA emails    |
-| Admin Panel| (secret URL)           | Your admin panel   |
-
----
-
-## Dashboard Features
-
-The admin dashboard includes real-time metrics:
-
-- **Database Pool** - Connections, queries, circuit breaker state
-- **Redis** - Workers, memory, commands
-- **Audit Log** - Recent activity
-- **System Info** - PHP version, memory usage
-
----
-
-## CLI Commands
-
-All commands are in `vendor/ados-labs/enterprise-admin-panel/elf/`.
-
-**All commands require triple authentication:**
-- `--token=` Master CLI token
-- `--email=` Admin email
-- `--password=` Admin password
-
-### Get Admin URL
-
-```bash
-php vendor/ados-labs/enterprise-admin-panel/elf/url-get.php \
-  --token=MASTER_TOKEN \
-  --email=admin@example.com \
-  --password=YOUR_PASSWORD
-```
-
-### Change Password
-
-```bash
-php vendor/ados-labs/enterprise-admin-panel/elf/password-change.php \
-  --token=MASTER_TOKEN \
-  --email=admin@example.com \
-  --password=CURRENT \
-  --new-password=NEW
-```
-
-### Create Emergency Access Token
-
-```bash
-php vendor/ados-labs/enterprise-admin-panel/elf/token-emergency-create.php \
-  --token=MASTER_TOKEN \
-  --email=admin@example.com \
-  --password=PASSWORD
-```
-
-Creates a one-time token that bypasses login and 2FA.
-
----
-
-## Security Features
-
-### 2FA (Two-Factor Authentication)
-
-- **Enabled by default** for all users
-- Codes sent via email (check Mailpit at http://localhost:8025)
-- Supports: Email, Telegram, Discord, Slack, TOTP
-
-### URL Security
-
-| Feature      | Traditional | This Panel           |
-|--------------|-------------|----------------------|
-| URL Pattern  | `/admin`    | `/x-{random 32 hex}` |
-| Entropy      | 0 bits      | 128 bits             |
-| Brute Force  | Easy        | 2^128 combinations   |
-
-### Database Pool
-
-- Connection pooling with LIFO reuse
-- Circuit breaker (trips on failures, auto-recovers)
-- Distributed state via Redis
-- Metrics and monitoring
+| Service | URL | Purpose |
+|---------|-----|---------|
+| PostgreSQL | localhost:5432 | Database |
+| Redis | localhost:6379 | Circuit breaker |
+| Mailpit | http://localhost:8025 | View 2FA emails |
+| Admin Panel | (secret URL) | Your admin panel |
 
 ---
 
@@ -280,7 +612,7 @@ Creates a one-time token that bypasses login and 2FA.
 See the [`docs/`](docs/) folder:
 
 - [Quick Start](docs/QUICK_START.md) - Get running fast
-- [CLI Commands](docs/CLI-COMMANDS.md) - All installation options
+- [CLI Commands](docs/CLI-COMMANDS.md) - All CLI commands in detail
 - [Performance](docs/PERFORMANCE.md) - OPcache, Redis, caching
 - [Database](docs/DATABASE.md) - Database access and configuration
 - [Architecture](docs/ARCHITECTURE.md) - System design
@@ -368,7 +700,13 @@ php /path/to/enterprise-admin-panel/elf/url-get.php \
 
 ### 2FA codes not arriving
 
-Check Mailpit: http://localhost:8025
+**Email:** Check Mailpit: http://localhost:8025
+
+**Telegram:**
+1. Verify bot token: `curl https://api.telegram.org/bot<TOKEN>/getMe`
+2. Verify chat ID: User must have sent `/start` to your bot
+
+**Discord/Slack:** Test webhook manually with curl
 
 ### "Class not found" errors in CLI commands
 

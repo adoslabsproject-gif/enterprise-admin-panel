@@ -4,7 +4,7 @@
         "Read more about it at https://getcomposer.org/doc/01-basic-usage.md#installing-dependencies",
         "This file is @generated automatically"
     ],
-    "content-hash": "c263d533b565a350356c0788d5025a03",
+    "content-hash": "c31b00106635d4f7b4c9021c3ead394f",
     "packages": [
         {
             "name": "psr/http-message",
@@ -224,6 +224,295 @@
         }
     ],
     "packages-dev": [
+        {
+            "name": "ados-labs/enterprise-psr3-logger",
+            "version": "dev-main",
+            "dist": {
+                "type": "path",
+                "url": "../enterprise-psr3-logger",
+                "reference": "937e2386fab4089e99e4b51943b3931e5b80970c"
+            },
+            "require": {
+                "ext-json": "*",
+                "ext-pdo": "*",
+                "monolog/monolog": "^3.0",
+                "php": "^8.1",
+                "psr/log": "^3.0"
+            },
+            "require-dev": {
+                "friendsofphp/php-cs-fixer": "^3.93",
+                "phpstan/phpstan": "^1.10",
+                "phpunit/phpunit": ">=10.1 <12.0"
+            },
+            "suggest": {
+                "ados-labs/enterprise-admin-panel": "For UI-based channel configuration and dashboard integration",
+                "ext-mysqli": "For MySQL database storage",
+                "ext-pgsql": "For PostgreSQL database storage (recommended)",
+                "ext-redis": "For Redis backup and config caching (recommended for production)"
+            },
+            "type": "library",
+            "extra": {
+                "admin-panel": {
+                    "module": "AdosLabs\\EnterprisePSR3Logger\\AdminIntegration\\LoggerAdminModule",
+                    "priority": 50,
+                    "assets-path": "public"
+                }
+            },
+            "autoload": {
+                "psr-4": {
+                    "AdosLabs\\EnterprisePSR3Logger\\": "src/"
+                },
+                "files": [
+                    "src/helpers.php",
+                    "src/Helpers/functions.php"
+                ]
+            },
+            "autoload-dev": {
+                "psr-4": {
+                    "AdosLabs\\EnterprisePSR3Logger\\Tests\\": "tests/"
+                }
+            },
+            "scripts": {
+                "test": [
+                    "phpunit"
+                ],
+                "stan": [
+                    "phpstan analyze src --level=9"
+                ],
+                "fix": [
+                    "php-cs-fixer fix"
+                ]
+            },
+            "license": [
+                "MIT"
+            ],
+            "authors": [
+                {
+                    "name": "Nicola Cucurachi",
+                    "email": "ados.labsproject@gmail.com",
+                    "role": "Developer"
+                },
+                {
+                    "name": "ADOS Labs",
+                    "email": "ados.labsproject@gmail.com"
+                }
+            ],
+            "description": "Enterprise PSR-3 Logger - Channel-based logging with pattern detection, rate limiting, Redis backup, and honest limitations",
+            "homepage": "https://github.com/adoslabsproject-gif/enterprise-psr3-logger",
+            "keywords": [
+                "channel-based",
+                "enterprise",
+                "logger",
+                "logging",
+                "monolog",
+                "pattern-detection",
+                "psr-3",
+                "rate-limiting",
+                "security"
+            ],
+            "support": {
+                "issues": "https://github.com/adoslabsproject-gif/enterprise-psr3-logger/issues",
+                "source": "https://github.com/adoslabsproject-gif/enterprise-psr3-logger"
+            },
+            "transport-options": {
+                "symlink": true,
+                "relative": true
+            }
+        },
+        {
+            "name": "ados-labs/enterprise-security-shield",
+            "version": "dev-main",
+            "dist": {
+                "type": "path",
+                "url": "../enterprise-security-shield",
+                "reference": "c8862a117864c96c7659d264d1ac5ee630f4e01b"
+            },
+            "require": {
+                "ext-json": "*",
+                "php": "^8.1"
+            },
+            "require-dev": {
+                "ext-pdo": "*",
+                "ext-redis": "*",
+                "friendsofphp/php-cs-fixer": "^3.0",
+                "nyholm/psr7": "^1.8",
+                "phpstan/phpstan": "^1.10",
+                "phpunit/phpunit": ">=10.1 <12.0",
+                "psr/http-server-middleware": "^1.0"
+            },
+            "suggest": {
+                "ados-labs/enterprise-admin-panel": "For admin panel integration with security dashboard",
+                "ext-pdo": "Required for DatabaseStorage backend",
+                "ext-redis": "Required for RedisStorage backend (recommended for production)"
+            },
+            "type": "library",
+            "extra": {
+                "admin-panel": {
+                    "module": "AdosLabs\\EnterpriseSecurityShield\\AdminIntegration\\SecurityShieldAdminModule",
+                    "priority": 15
+                }
+            },
+            "autoload": {
+                "psr-4": {
+                    "AdosLabs\\EnterpriseSecurityShield\\": "src/"
+                }
+            },
+            "autoload-dev": {
+                "psr-4": {
+                    "AdosLabs\\EnterpriseSecurityShield\\Tests\\": "tests/"
+                }
+            },
+            "scripts": {
+                "test": [
+                    "phpunit tests/"
+                ],
+                "stan": [
+                    "phpstan analyse src/ --level=9"
+                ],
+                "fix": [
+                    "php-cs-fixer fix"
+                ],
+                "fix-dry": [
+                    "php-cs-fixer fix --dry-run --diff"
+                ],
+                "quality": [
+                    "@fix-dry",
+                    "@stan"
+                ]
+            },
+            "license": [
+                "MIT"
+            ],
+            "authors": [
+                {
+                    "name": "AdosLabs",
+                    "email": "dev@adoslabs.com",
+                    "homepage": "https://github.com/adoslabsproject-gif"
+                }
+            ],
+            "description": "Enterprise Security Shield - WAF, Honeypot, Scanner Detection, Rate Limiting, Resilience Patterns with Admin Panel Integration",
+            "keywords": [
+                "admin-panel",
+                "anomaly-detection",
+                "circuit-breaker",
+                "health-check",
+                "honeypot",
+                "middleware",
+                "opentelemetry",
+                "prometheus",
+                "rate-limiting",
+                "resilience",
+                "security",
+                "waf"
+            ],
+            "transport-options": {
+                "symlink": true,
+                "relative": true
+            }
+        },
+        {
+            "name": "monolog/monolog",
+            "version": "3.10.0",
+            "source": {
+                "type": "git",
+                "url": "https://github.com/Seldaek/monolog.git",
+                "reference": "b321dd6749f0bf7189444158a3ce785cc16d69b0"
+            },
+            "dist": {
+                "type": "zip",
+                "url": "https://api.github.com/repos/Seldaek/monolog/zipball/b321dd6749f0bf7189444158a3ce785cc16d69b0",
+                "reference": "b321dd6749f0bf7189444158a3ce785cc16d69b0",
+                "shasum": ""
+            },
+            "require": {
+                "php": ">=8.1",
+                "psr/log": "^2.0 || ^3.0"
+            },
+            "provide": {
+                "psr/log-implementation": "3.0.0"
+            },
+            "require-dev": {
+                "aws/aws-sdk-php": "^3.0",
+                "doctrine/couchdb": "~1.0@dev",
+                "elasticsearch/elasticsearch": "^7 || ^8",
+                "ext-json": "*",
+                "graylog2/gelf-php": "^1.4.2 || ^2.0",
+                "guzzlehttp/guzzle": "^7.4.5",
+                "guzzlehttp/psr7": "^2.2",
+                "mongodb/mongodb": "^1.8 || ^2.0",
+                "php-amqplib/php-amqplib": "~2.4 || ^3",
+                "php-console/php-console": "^3.1.8",
+                "phpstan/phpstan": "^2",
+                "phpstan/phpstan-deprecation-rules": "^2",
+                "phpstan/phpstan-strict-rules": "^2",
+                "phpunit/phpunit": "^10.5.17 || ^11.0.7",
+                "predis/predis": "^1.1 || ^2",
+                "rollbar/rollbar": "^4.0",
+                "ruflin/elastica": "^7 || ^8",
+                "symfony/mailer": "^5.4 || ^6",
+                "symfony/mime": "^5.4 || ^6"
+            },
+            "suggest": {
+                "aws/aws-sdk-php": "Allow sending log messages to AWS services like DynamoDB",
+                "doctrine/couchdb": "Allow sending log messages to a CouchDB server",
+                "elasticsearch/elasticsearch": "Allow sending log messages to an Elasticsearch server via official client",
+                "ext-amqp": "Allow sending log messages to an AMQP server (1.0+ required)",
+                "ext-curl": "Required to send log messages using the IFTTTHandler, the LogglyHandler, the SendGridHandler, the SlackWebhookHandler or the TelegramBotHandler",
+                "ext-mbstring": "Allow to work properly with unicode symbols",
+                "ext-mongodb": "Allow sending log messages to a MongoDB server (via driver)",
+                "ext-openssl": "Required to send log messages using SSL",
+                "ext-sockets": "Allow sending log messages to a Syslog server (via UDP driver)",
+                "graylog2/gelf-php": "Allow sending log messages to a GrayLog2 server",
+                "mongodb/mongodb": "Allow sending log messages to a MongoDB server (via library)",
+                "php-amqplib/php-amqplib": "Allow sending log messages to an AMQP server using php-amqplib",
+                "rollbar/rollbar": "Allow sending log messages to Rollbar",
+                "ruflin/elastica": "Allow sending log messages to an Elastic Search server"
+            },
+            "type": "library",
+            "extra": {
+                "branch-alias": {
+                    "dev-main": "3.x-dev"
+                }
+            },
+            "autoload": {
+                "psr-4": {
+                    "Monolog\\": "src/Monolog"
+                }
+            },
+            "notification-url": "https://packagist.org/downloads/",
+            "license": [
+                "MIT"
+            ],
+            "authors": [
+                {
+                    "name": "Jordi Boggiano",
+                    "email": "j.boggiano@seld.be",
+                    "homepage": "https://seld.be"
+                }
+            ],
+            "description": "Sends your logs to files, sockets, inboxes, databases and various web services",
+            "homepage": "https://github.com/Seldaek/monolog",
+            "keywords": [
+                "log",
+                "logging",
+                "psr-3"
+            ],
+            "support": {
+                "issues": "https://github.com/Seldaek/monolog/issues",
+                "source": "https://github.com/Seldaek/monolog/tree/3.10.0"
+            },
+            "funding": [
+                {
+                    "url": "https://github.com/Seldaek",
+                    "type": "github"
+                },
+                {
+                    "url": "https://tidelift.com/funding/github/packagist/monolog/monolog",
+                    "type": "tidelift"
+                }
+            ],
+            "time": "2026-01-02T08:56:05+00:00"
+        },
         {
             "name": "myclabs/deep-copy",
             "version": "1.13.4",
@@ -836,16 +1125,16 @@
         },
         {
             "name": "phpunit/phpunit",
-            "version": "10.5.61",
+            "version": "10.5.63",
             "source": {
                 "type": "git",
                 "url": "https://github.com/sebastianbergmann/phpunit.git",
-                "reference": "bd265b671a63b87e85a8155f885b6fbb41ee505b"
+                "reference": "33198268dad71e926626b618f3ec3966661e4d90"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/sebastianbergmann/phpunit/zipball/bd265b671a63b87e85a8155f885b6fbb41ee505b",
-                "reference": "bd265b671a63b87e85a8155f885b6fbb41ee505b",
+                "url": "https://api.github.com/repos/sebastianbergmann/phpunit/zipball/33198268dad71e926626b618f3ec3966661e4d90",
+                "reference": "33198268dad71e926626b618f3ec3966661e4d90",
                 "shasum": ""
             },
             "require": {
@@ -917,7 +1206,7 @@
             "support": {
                 "issues": "https://github.com/sebastianbergmann/phpunit/issues",
                 "security": "https://github.com/sebastianbergmann/phpunit/security/policy",
-                "source": "https://github.com/sebastianbergmann/phpunit/tree/10.5.61"
+                "source": "https://github.com/sebastianbergmann/phpunit/tree/10.5.63"
             },
             "funding": [
                 {
@@ -941,7 +1230,7 @@
                     "type": "tidelift"
                 }
             ],
-            "time": "2026-01-24T16:06:23+00:00"
+            "time": "2026-01-27T05:48:37+00:00"
         },
         {
             "name": "sebastian/cli-parser",
@@ -1949,7 +2238,10 @@
     ],
     "aliases": [],
     "minimum-stability": "stable",
-    "stability-flags": {},
+    "stability-flags": {
+        "ados-labs/enterprise-psr3-logger": 20,
+        "ados-labs/enterprise-security-shield": 20
+    },
     "prefer-stable": true,
     "prefer-lowest": false,
     "platform": {

@@ -227,6 +227,21 @@ $moduleRegistry = new ModuleRegistry($dbPool);
 // This automatically registers modules from composer packages like enterprise-psr3-logger
 $moduleRegistry->discoverModules();
 
+// Discover modules from local workspace packages (for development)
+// These are sibling packages in the monorepo/workspace that aren't in composer.lock
+$workspaceRoot = dirname(__DIR__, 2); // Go up from public/ to workspace root
+$workspacePackages = [
+    $workspaceRoot . '/enterprise-security-shield',
+    $workspaceRoot . '/enterprise-psr3-logger',
+    // Add more workspace packages here as needed
+];
+
+foreach ($workspacePackages as $packagePath) {
+    if (is_dir($packagePath)) {
+        $moduleRegistry->discoverFromPath($packagePath);
+    }
+}
+
 // ============================================================================
 // Request Parsing
 // ============================================================================
