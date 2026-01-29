@@ -201,9 +201,12 @@ final class SessionService
     /**
      * Extend session by the configured extension amount
      *
+     * RACE CONDITION FIX: Uses conditional UPDATE to prevent double-extension.
+     * Only extends if expires_at hasn't changed since we read it (optimistic locking).
+     *
      * @param string $sessionId Session ID
      * @param array|null $session Session data (if null, will be fetched)
-     * @return bool True if session was extended, false if not found
+     * @return bool True if session was extended, false if not found or already extended
      */
     public function extend(string $sessionId, ?array $session = null): bool
     {
@@ -218,19 +221,33 @@ final class SessionService
         $now = new DateTimeImmutable();
         $newExpiresAt = $now->modify('+' . self::SESSION_EXTENSION_AMOUNT_MINUTES . ' minutes');
 
+        // Get current expires_at for optimistic locking
+        $currentExpiresAt = $session['expires_at'];
+
         $payload = $session['payload'];
         $payload['extension_count'] = ($payload['extension_count'] ?? 0) + 1;
         $payload['last_extended_at'] = $now->format('Y-m-d H:i:s');
 
-        $this->db->execute(
-            'UPDATE admin_sessions SET expires_at = ?, payload = ?, last_activity = ? WHERE id = ?',
+        // RACE CONDITION FIX: Only update if expires_at hasn't changed
+        // This prevents double-extension when two requests check simultaneously
+        $affectedRows = $this->db->execute(
+            'UPDATE admin_sessions SET expires_at = ?, payload = ?, last_activity = ? WHERE id = ? AND expires_at = ?',
             [
                 $newExpiresAt->format('Y-m-d H:i:s'),
                 json_encode($payload),
                 $now->format('Y-m-d H:i:s'),
                 $sessionId,
+                $currentExpiresAt,
             ]
         );
+
+        // If no rows affected, another request already extended the session
+        if ($affectedRows === 0) {
+            $this->logger->debug('Session extension skipped - already extended by another request', [
+                'session_id' => substr($sessionId, 0, 16) . '...',
+            ]);
+            return false;
+        }
 
         return true;
     }

@@ -80,6 +80,12 @@ final class DatabasePool
     private array $statementCache = [];
 
     /**
+     * Cached max statements per connection (calculated once, updated on pool size change)
+     */
+    private int $cachedMaxStatementsPerConnection = 0;
+    private int $lastPoolSizeForCache = 0;
+
+    /**
      * Connection counter for unique IDs
      */
     private int $connectionCounter = 0;
@@ -925,6 +931,8 @@ final class DatabasePool
      * Reusing a statement from a different connection causes errors.
      * This cache is keyed by connection identifier + SQL hash.
      *
+     * PERFORMANCE: maxPerConnection is cached and only recalculated when pool size changes.
+     *
      * @param PDO $pdo The PDO connection
      * @param string $sql The SQL query
      * @param string $connectionId The connection identifier
@@ -946,8 +954,10 @@ final class DatabasePool
             $this->statementCache[$connectionId] = [];
         }
 
+        // Get cached max per connection (only recalculate if pool size changed)
+        $maxPerConnection = $this->getMaxStatementsPerConnection();
+
         // LRU eviction if cache full for this connection
-        $maxPerConnection = (int) ceil($this->config->getStatementCacheSize() / max(1, count($this->pool)));
         if (count($this->statementCache[$connectionId]) >= $maxPerConnection) {
             array_shift($this->statementCache[$connectionId]);
         }
@@ -955,6 +965,26 @@ final class DatabasePool
         $this->statementCache[$connectionId][$sqlHash] = $stmt;
 
         return $stmt;
+    }
+
+    /**
+     * Get max statements per connection (cached calculation)
+     *
+     * PERFORMANCE: Only recalculates when pool size changes, not on every prepare().
+     */
+    private function getMaxStatementsPerConnection(): int
+    {
+        $currentPoolSize = count($this->pool);
+
+        // Recalculate only if pool size changed
+        if ($currentPoolSize !== $this->lastPoolSizeForCache || $this->cachedMaxStatementsPerConnection === 0) {
+            $this->lastPoolSizeForCache = $currentPoolSize;
+            $this->cachedMaxStatementsPerConnection = (int) ceil(
+                $this->config->getStatementCacheSize() / max(1, $currentPoolSize)
+            );
+        }
+
+        return $this->cachedMaxStatementsPerConnection;
     }
 
     /**

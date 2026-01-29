@@ -36,9 +36,13 @@ CREATE TABLE IF NOT EXISTS admin_users (
     last_login_at TIMESTAMP DEFAULT NULL,
     last_login_ip VARCHAR(45) DEFAULT NULL,
 
-    -- Brute force protection
+    -- Brute force protection (login)
     failed_login_attempts INTEGER DEFAULT 0,
     locked_until TIMESTAMP DEFAULT NULL,
+
+    -- Recovery code rate limiting (separate from login)
+    recovery_attempts INTEGER DEFAULT 0,
+    recovery_locked_until TIMESTAMP DEFAULT NULL,
 
     -- Two-factor authentication (ENABLED BY DEFAULT for security)
     two_factor_secret VARCHAR(255) DEFAULT NULL,
@@ -76,6 +80,7 @@ CREATE INDEX IF NOT EXISTS idx_admin_users_email ON admin_users(email);
 CREATE INDEX IF NOT EXISTS idx_admin_users_role ON admin_users(role);
 CREATE INDEX IF NOT EXISTS idx_admin_users_active ON admin_users(is_active);
 CREATE INDEX IF NOT EXISTS idx_admin_users_locked ON admin_users(locked_until) WHERE locked_until IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_admin_users_recovery_locked ON admin_users(recovery_locked_until) WHERE recovery_locked_until IS NOT NULL;
 CREATE INDEX IF NOT EXISTS idx_admin_users_reset_token ON admin_users(password_reset_token) WHERE password_reset_token IS NOT NULL;
 CREATE INDEX IF NOT EXISTS idx_admin_users_cli_token ON admin_users(cli_token_hash) WHERE cli_token_hash IS NOT NULL;
 CREATE INDEX IF NOT EXISTS idx_admin_users_is_master ON admin_users(is_master) WHERE is_master = TRUE;
@@ -108,6 +113,8 @@ COMMENT ON COLUMN admin_users.password_hash IS 'Argon2id hashed password (never 
 COMMENT ON COLUMN admin_users.permissions IS 'JSON array of specific permissions beyond role defaults';
 COMMENT ON COLUMN admin_users.failed_login_attempts IS 'Counter for brute force protection (reset on successful login)';
 COMMENT ON COLUMN admin_users.locked_until IS 'Account locked until this timestamp (NULL = not locked)';
+COMMENT ON COLUMN admin_users.recovery_attempts IS 'Counter for recovery code brute force protection';
+COMMENT ON COLUMN admin_users.recovery_locked_until IS 'Recovery codes locked until this timestamp (NULL = not locked)';
 COMMENT ON COLUMN admin_users.two_factor_secret IS 'TOTP secret for 2FA (encrypted at rest recommended)';
 COMMENT ON COLUMN admin_users.two_factor_method IS 'Two-factor authentication method: totp, email, telegram, discord, slack';
 COMMENT ON COLUMN admin_users.two_factor_recovery_codes IS 'JSON array of hashed recovery codes';

@@ -36,9 +36,13 @@ CREATE TABLE IF NOT EXISTS admin_users (
     last_login_at TIMESTAMP NULL DEFAULT NULL,
     last_login_ip VARCHAR(45) DEFAULT NULL,
 
-    -- Brute force protection
+    -- Brute force protection (login)
     failed_login_attempts INT UNSIGNED DEFAULT 0,
     locked_until TIMESTAMP NULL DEFAULT NULL,
+
+    -- Recovery code rate limiting (separate from login)
+    recovery_attempts INT UNSIGNED DEFAULT 0,
+    recovery_locked_until TIMESTAMP NULL DEFAULT NULL,
 
     -- Two-factor authentication (ENABLED BY DEFAULT for security)
     two_factor_secret VARCHAR(255) DEFAULT NULL,
@@ -72,6 +76,7 @@ CREATE TABLE IF NOT EXISTS admin_users (
     INDEX idx_admin_users_role (role),
     INDEX idx_admin_users_active (is_active),
     INDEX idx_admin_users_locked (locked_until),
+    INDEX idx_admin_users_recovery_locked (recovery_locked_until),
     INDEX idx_admin_users_reset_token (password_reset_token),
     INDEX idx_admin_users_cli_token (cli_token_hash),
     INDEX idx_admin_users_is_master (is_master),

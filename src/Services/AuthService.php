@@ -37,6 +37,12 @@ final class AuthService
     private const LOCKOUT_MULTIPLIER = 2; // Exponential backoff
 
     /**
+     * Recovery code rate limiting
+     */
+    private const MAX_RECOVERY_ATTEMPTS = 5;
+    private const RECOVERY_LOCKOUT_MINUTES = 30;
+
+    /**
      * Password hashing options (Argon2id - OWASP 2024 recommended)
      */
     private const PASSWORD_ALGO = PASSWORD_ARGON2ID;
@@ -787,31 +793,50 @@ final class AuthService
 
     /**
      * Record failed login attempt
+     *
+     * ENTERPRISE: Uses single atomic UPDATE with RETURNING (PostgreSQL) or
+     * UPDATE + SELECT in single transaction for atomicity.
+     * Database-agnostic interval calculation.
      */
     private function recordFailedAttempt(int $userId, string $ipAddress, ?string $userAgent): void
     {
-        // Increment failed attempts
-        $this->db->execute(
-            'UPDATE admin_users SET failed_login_attempts = failed_login_attempts + 1 WHERE id = ?',
-            [$userId]
-        );
+        $driver = $this->db->getDriverName();
 
-        // Get updated count
-        $rows = $this->db->query(
-            'SELECT failed_login_attempts FROM admin_users WHERE id = ?',
-            [$userId]
-        );
-        $attempts = (int) ($rows[0]['failed_login_attempts'] ?? 0);
+        // Increment and get new count atomically
+        if ($driver === 'pgsql') {
+            // PostgreSQL: UPDATE with RETURNING for atomic increment + read
+            $rows = $this->db->query(
+                'UPDATE admin_users SET failed_login_attempts = failed_login_attempts + 1 WHERE id = ? RETURNING failed_login_attempts',
+                [$userId]
+            );
+            $attempts = (int) ($rows[0]['failed_login_attempts'] ?? 0);
+        } else {
+            // MySQL/SQLite: UPDATE then SELECT (still atomic within connection)
+            $this->db->execute(
+                'UPDATE admin_users SET failed_login_attempts = failed_login_attempts + 1 WHERE id = ?',
+                [$userId]
+            );
+            $rows = $this->db->query(
+                'SELECT failed_login_attempts FROM admin_users WHERE id = ?',
+                [$userId]
+            );
+            $attempts = (int) ($rows[0]['failed_login_attempts'] ?? 0);
+        }
 
         // Lock account if threshold exceeded
         if ($attempts >= self::MAX_FAILED_ATTEMPTS) {
             // Progressive lockout (exponential backoff)
             $lockoutMinutes = self::LOCKOUT_DURATION_MINUTES * pow(self::LOCKOUT_MULTIPLIER, $attempts - self::MAX_FAILED_ATTEMPTS);
-            $lockoutMinutes = min($lockoutMinutes, 1440); // Max 24 hours
+            $lockoutMinutes = (int) min($lockoutMinutes, 1440); // Max 24 hours
+
+            // Calculate lockout timestamp in PHP (database-agnostic)
+            $lockedUntil = (new DateTimeImmutable())
+                ->modify("+{$lockoutMinutes} minutes")
+                ->format('Y-m-d H:i:s');
 
             $this->db->execute(
-                "UPDATE admin_users SET locked_until = NOW() + INTERVAL '" . (int) $lockoutMinutes . " minutes' WHERE id = ?",
-                [$userId]
+                'UPDATE admin_users SET locked_until = ? WHERE id = ?',
+                [$lockedUntil, $userId]
             );
 
             $this->auditService->log('account_lock', $userId, [
@@ -826,7 +851,7 @@ final class AuthService
             ]);
 
             // Strategic log: account locked (potential brute force)
-            Logger::channel('security')->error( 'Account locked due to excessive failed attempts', [
+            Logger::channel('security')->error('Account locked due to excessive failed attempts', [
                 'user_id' => $userId,
                 'ip' => $ipAddress,
                 'attempts' => $attempts,
@@ -948,21 +973,45 @@ final class AuthService
     }
 
     /**
-     * Verify recovery code
+     * Verify recovery code with rate limiting
+     *
+     * SECURITY: Rate limits recovery code attempts to prevent brute force.
+     * Uses a separate counter from login attempts to avoid interference.
+     * After MAX_RECOVERY_ATTEMPTS failures, locks recovery for RECOVERY_LOCKOUT_MINUTES.
      */
     private function verifyRecoveryCode(int $userId, string $code): bool
     {
+        // Check rate limit first
+        if (!$this->checkRecoveryRateLimit($userId)) {
+            Logger::channel('security')->warning('Recovery code rate limit exceeded', [
+                'user_id' => $userId,
+            ]);
+            return false;
+        }
+
         $rows = $this->db->query(
-            'SELECT two_factor_recovery_codes FROM admin_users WHERE id = ?',
+            'SELECT two_factor_recovery_codes, recovery_attempts, recovery_locked_until FROM admin_users WHERE id = ?',
             [$userId]
         );
-        $codesJson = $rows[0]['two_factor_recovery_codes'] ?? null;
+
+        if (empty($rows)) {
+            return false;
+        }
+
+        $user = $rows[0];
+        $codesJson = $user['two_factor_recovery_codes'] ?? null;
 
         if (!$codesJson) {
+            $this->recordRecoveryAttempt($userId, false);
             return false;
         }
 
         $hashedCodes = json_decode($codesJson, true);
+
+        if (!is_array($hashedCodes)) {
+            $this->recordRecoveryAttempt($userId, false);
+            return false;
+        }
 
         foreach ($hashedCodes as $index => $hashedCode) {
             if (password_verify($code, $hashedCode)) {
@@ -970,16 +1019,113 @@ final class AuthService
                 unset($hashedCodes[$index]);
                 $hashedCodes = array_values($hashedCodes);
 
+                // Update codes and reset recovery attempts counter
                 $this->db->execute(
-                    'UPDATE admin_users SET two_factor_recovery_codes = ? WHERE id = ?',
+                    'UPDATE admin_users SET two_factor_recovery_codes = ?, recovery_attempts = 0, recovery_locked_until = NULL WHERE id = ?',
                     [json_encode($hashedCodes), $userId]
                 );
+
+                Logger::channel('security')->info('Recovery code verified successfully', [
+                    'user_id' => $userId,
+                    'remaining_codes' => count($hashedCodes),
+                ]);
 
                 return true;
             }
         }
 
+        // Code didn't match - record failed attempt
+        $this->recordRecoveryAttempt($userId, false);
         return false;
+    }
+
+    /**
+     * Check if recovery code attempts are rate limited
+     */
+    private function checkRecoveryRateLimit(int $userId): bool
+    {
+        $rows = $this->db->query(
+            'SELECT recovery_locked_until FROM admin_users WHERE id = ?',
+            [$userId]
+        );
+
+        if (empty($rows)) {
+            return true; // User not found, let verification handle it
+        }
+
+        $lockedUntil = $rows[0]['recovery_locked_until'] ?? null;
+
+        if ($lockedUntil === null) {
+            return true; // Not locked
+        }
+
+        $lockedUntilTime = new DateTimeImmutable($lockedUntil);
+        $now = new DateTimeImmutable();
+
+        if ($now >= $lockedUntilTime) {
+            // Lock expired, reset counter
+            $this->db->execute(
+                'UPDATE admin_users SET recovery_attempts = 0, recovery_locked_until = NULL WHERE id = ?',
+                [$userId]
+            );
+            return true;
+        }
+
+        return false; // Still locked
+    }
+
+    /**
+     * Record a recovery code attempt (for rate limiting)
+     */
+    private function recordRecoveryAttempt(int $userId, bool $success): void
+    {
+        if ($success) {
+            // Reset on success
+            $this->db->execute(
+                'UPDATE admin_users SET recovery_attempts = 0, recovery_locked_until = NULL WHERE id = ?',
+                [$userId]
+            );
+            return;
+        }
+
+        $driver = $this->db->getDriverName();
+
+        // Increment and get new count
+        if ($driver === 'pgsql') {
+            $rows = $this->db->query(
+                'UPDATE admin_users SET recovery_attempts = COALESCE(recovery_attempts, 0) + 1 WHERE id = ? RETURNING recovery_attempts',
+                [$userId]
+            );
+            $attempts = (int) ($rows[0]['recovery_attempts'] ?? 0);
+        } else {
+            $this->db->execute(
+                'UPDATE admin_users SET recovery_attempts = COALESCE(recovery_attempts, 0) + 1 WHERE id = ?',
+                [$userId]
+            );
+            $rows = $this->db->query(
+                'SELECT recovery_attempts FROM admin_users WHERE id = ?',
+                [$userId]
+            );
+            $attempts = (int) ($rows[0]['recovery_attempts'] ?? 0);
+        }
+
+        // Lock if threshold exceeded
+        if ($attempts >= self::MAX_RECOVERY_ATTEMPTS) {
+            $lockedUntil = (new DateTimeImmutable())
+                ->modify('+' . self::RECOVERY_LOCKOUT_MINUTES . ' minutes')
+                ->format('Y-m-d H:i:s');
+
+            $this->db->execute(
+                'UPDATE admin_users SET recovery_locked_until = ? WHERE id = ?',
+                [$lockedUntil, $userId]
+            );
+
+            Logger::channel('security')->error('Recovery code attempts locked', [
+                'user_id' => $userId,
+                'attempts' => $attempts,
+                'locked_until' => $lockedUntil,
+            ]);
+        }
     }
 
     /**

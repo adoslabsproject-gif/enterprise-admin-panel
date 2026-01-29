@@ -90,6 +90,11 @@ final class ModuleRegistry
     private array $discoveryPaths = [];
 
     /**
+     * Flag to track if modules need sorting (deferred sort optimization)
+     */
+    private bool $needsSort = false;
+
+    /**
      * @param DatabasePool $db Database pool
      * @param LoggerInterface|null $logger PSR-3 logger
      */
@@ -98,6 +103,20 @@ final class ModuleRegistry
         private ?LoggerInterface $logger = null
     ) {
         $this->logger = $logger ?? new NullLogger();
+    }
+
+    /**
+     * Ensure modules are sorted by priority (deferred sort)
+     *
+     * PERFORMANCE: Only sorts when needed, called once before access.
+     * This avoids O(N²) sorting when registering N modules individually.
+     */
+    private function ensureSorted(): void
+    {
+        if ($this->needsSort && count($this->modules) > 0) {
+            uasort($this->modules, fn($a, $b) => $a['priority'] <=> $b['priority']);
+            $this->needsSort = false;
+        }
     }
 
     /**
@@ -233,8 +252,8 @@ final class ModuleRegistry
             'config' => $this->getModuleConfig($name),
         ];
 
-        // Sort by priority
-        uasort($this->modules, fn($a, $b) => $a['priority'] <=> $b['priority']);
+        // Mark for deferred sort (don't sort on every registration - O(N²))
+        $this->needsSort = true;
 
         return true;
     }
@@ -242,10 +261,16 @@ final class ModuleRegistry
     /**
      * Get all enabled modules
      *
+     * PERFORMANCE: Deferred sort - only sorts once when modules are accessed,
+     * not on every registerModule() call. O(N log N) total instead of O(N²).
+     *
      * @return array<AdminModuleInterface>
      */
     public function getEnabledModules(): array
     {
+        // Deferred sort on first access
+        $this->ensureSorted();
+
         $enabled = [];
 
         foreach ($this->modules as $name => $module) {
