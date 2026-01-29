@@ -126,12 +126,30 @@ final class AuthController extends BaseController
     /**
      * Sanitize return URL to prevent open redirect attacks
      * Only allows relative URLs within the admin panel
+     *
+     * SECURITY: Validates against:
+     * - Absolute URLs with scheme
+     * - Protocol-relative URLs
+     * - Path traversal sequences
+     * - URLs outside admin base path
      */
     private function sanitizeReturnUrl(?string $url): string
     {
         $default = $this->adminUrl('dashboard');
 
         if ($url === null || $url === '') {
+            return $default;
+        }
+
+        // SECURITY: Reject null bytes (path injection)
+        if (str_contains($url, "\0")) {
+            return $default;
+        }
+
+        // SECURITY: Reject path traversal sequences (../, ..\, encoded variants)
+        // This prevents /admin/../external or /admin/..%2F tricks
+        $decodedUrl = urldecode($url);
+        if (preg_match('#(?:^|[\\\\/])\.\.(?:[\\\\/]|$)#', $decodedUrl)) {
             return $default;
         }
 

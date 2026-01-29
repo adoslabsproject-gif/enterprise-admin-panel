@@ -829,9 +829,18 @@ class LoggerController extends BaseController
 
     /**
      * Get distinct values from logs table
+     *
+     * SECURITY: Uses whitelist validation to prevent SQL injection.
+     * Column names cannot be parameterized in SQL, so we validate against allowed columns.
      */
     private function getDistinctValues(string $column): array
     {
+        // SECURITY: Whitelist of allowed column names to prevent SQL injection
+        $allowedColumns = ['channel', 'level', 'request_id'];
+        if (!in_array($column, $allowedColumns, true)) {
+            return [];
+        }
+
         try {
             $rows = $this->db->query("SELECT DISTINCT {$column} FROM logs ORDER BY {$column}");
             return array_column($rows, $column);
