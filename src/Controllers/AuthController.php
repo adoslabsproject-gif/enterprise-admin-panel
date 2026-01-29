@@ -306,7 +306,7 @@ final class AuthController extends BaseController
             'return_url' => $returnUrl,
             'form_action' => $this->adminUrl('2fa/verify'),
             'admin_base_path' => $this->getAdminBasePath(),
-            '2fa_method' => $method,
+            'tfa_method' => $method,
             'csrf_input' => $csrfInput,
         ], null);
     }

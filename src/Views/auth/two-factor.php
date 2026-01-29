@@ -7,7 +7,7 @@
  * @var string $return_url Return URL after verification
  * @var string $admin_base_path Admin panel base path
  * @var string $csrf_input CSRF hidden input
- * @var string $2fa_method 2FA method (email, telegram, discord, slack, totp)
+ * @var string $tfa_method 2FA method (email, telegram, discord, slack, totp)
  */
 
 $error = $error ?? null;
@@ -15,7 +15,7 @@ $form_action = $form_action ?? '';
 $return_url = $return_url ?? '';
 $admin_base_path = $admin_base_path ?? '';
 $csrf_input = $csrf_input ?? '';
-$twoFaMethod = ${"2fa_method"} ?? 'email';
+$twoFaMethod = $tfa_method ?? 'email';
 
 $methodLabel = match ($twoFaMethod) {
     'email' => 'We sent a verification code to your email',
