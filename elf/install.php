@@ -29,8 +29,11 @@ $searchDir = getcwd();
 for ($i = 0; $i < 10; $i++) {
     if (file_exists($searchDir . '/composer.json')) {
         $composerJson = json_decode(file_get_contents($searchDir . '/composer.json'), true);
-        // Check if this is NOT the package itself
-        if (($composerJson['name'] ?? '') !== 'ados-labs/enterprise-admin-panel') {
+        $packageName = $composerJson['name'] ?? '';
+        // Check if this is NOT the package itself AND has a valid name AND has vendor/
+        if ($packageName !== 'ados-labs/enterprise-admin-panel'
+            && $packageName !== ''
+            && is_dir($searchDir . '/vendor')) {
             $projectRoot = $searchDir;
             break;
         }
