@@ -17,6 +17,7 @@ namespace AdosLabs\AdminPanel\Cache\Drivers;
 
 use Redis;
 use RedisException;
+use AdosLabs\EnterprisePSR3Logger\LoggerFacade as Logger;
 
 final class RedisDriver implements CacheDriverInterface
 {
@@ -220,6 +221,10 @@ final class RedisDriver implements CacheDriverInterface
             }
             return $this->getRedis()->incrBy($key, $value);
         } catch (RedisException $e) {
+            Logger::channel('database')->error('Redis increment failed', [
+                'key' => $key,
+                'error' => $e->getMessage(),
+            ]);
             return false;
         }
     }
@@ -235,6 +240,10 @@ final class RedisDriver implements CacheDriverInterface
             }
             return $this->getRedis()->decrBy($key, $value);
         } catch (RedisException $e) {
+            Logger::channel('database')->error('Redis decrement failed', [
+                'key' => $key,
+                'error' => $e->getMessage(),
+            ]);
             return false;
         }
     }
@@ -356,7 +365,9 @@ LUA;
             try {
                 $this->redis->close();
             } catch (RedisException $e) {
-                // Ignore close errors
+                Logger::channel('database')->debug('Redis close error (ignored)', [
+                    'error' => $e->getMessage(),
+                ]);
             }
             $this->redis = null;
         }

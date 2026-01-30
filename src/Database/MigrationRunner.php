@@ -9,6 +9,7 @@ use PDOException;
 use Psr\Log\LoggerInterface;
 use Psr\Log\NullLogger;
 use RuntimeException;
+use AdosLabs\EnterprisePSR3Logger\LoggerFacade as Logger;
 
 /**
  * Enterprise Migration Runner
@@ -281,6 +282,9 @@ final class MigrationRunner
             $result = $stmt->fetchAll(PDO::FETCH_KEY_PAIR);
             return $result ?: [];
         } catch (PDOException $e) {
+            Logger::channel('database')->error('Failed to get applied migrations', [
+                'error' => $e->getMessage(),
+            ]);
             return [];
         }
     }

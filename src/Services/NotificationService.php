@@ -317,7 +317,7 @@ final class NotificationService
         $config = $this->config['telegram'];
 
         if (empty($config['bot_token'])) {
-            Logger::channel('notifications')->warning('Telegram send failed - bot token not configured');
+            Logger::channel('api')->warning('Telegram send failed - bot token not configured');
             return ['success' => false, 'channel' => self::CHANNEL_TELEGRAM, 'error' => 'Bot token not configured'];
         }
 
@@ -343,20 +343,20 @@ final class NotificationService
             $result = json_decode($response, true);
 
             if ($result['ok'] ?? false) {
-                Logger::channel('notifications')->info('Telegram message sent', [
+                Logger::channel('api')->info('Telegram message sent', [
                     'chat_id' => substr($chatId, 0, 4) . '***',
                 ]);
                 return ['success' => true, 'channel' => self::CHANNEL_TELEGRAM, 'error' => null];
             }
 
             $error = $result['description'] ?? 'Unknown error';
-            Logger::channel('notifications')->error('Telegram send failed', [
+            Logger::channel('api')->error('Telegram send failed', [
                 'chat_id' => substr($chatId, 0, 4) . '***',
                 'error' => $error,
             ]);
             return ['success' => false, 'channel' => self::CHANNEL_TELEGRAM, 'error' => $error];
         } catch (\Throwable $e) {
-            Logger::channel('notifications')->error('Telegram send exception', [
+            Logger::channel('api')->error('Telegram send exception', [
                 'chat_id' => substr($chatId, 0, 4) . '***',
                 'error' => $e->getMessage(),
             ]);
@@ -372,7 +372,7 @@ final class NotificationService
         $config = $this->config['discord'];
 
         if (empty($config['webhook_url'])) {
-            Logger::channel('notifications')->warning('Discord send failed - webhook URL not configured');
+            Logger::channel('api')->warning('Discord send failed - webhook URL not configured');
             return ['success' => false, 'channel' => self::CHANNEL_DISCORD, 'error' => 'Webhook URL not configured'];
         }
 
@@ -404,19 +404,19 @@ final class NotificationService
             if ($response === '' || $response === false) {
                 // Check HTTP response code
                 if (isset($http_response_header[0]) && str_contains($http_response_header[0], '204')) {
-                    Logger::channel('notifications')->info('Discord message sent', [
+                    Logger::channel('api')->info('Discord message sent', [
                         'title' => $title,
                     ]);
                     return ['success' => true, 'channel' => self::CHANNEL_DISCORD, 'error' => null];
                 }
             }
 
-            Logger::channel('notifications')->info('Discord message sent', [
+            Logger::channel('api')->info('Discord message sent', [
                 'title' => $title,
             ]);
             return ['success' => true, 'channel' => self::CHANNEL_DISCORD, 'error' => null];
         } catch (\Throwable $e) {
-            Logger::channel('notifications')->error('Discord send exception', [
+            Logger::channel('api')->error('Discord send exception', [
                 'title' => $title,
                 'error' => $e->getMessage(),
             ]);
@@ -432,7 +432,7 @@ final class NotificationService
         $config = $this->config['slack'];
 
         if (empty($config['webhook_url'])) {
-            Logger::channel('notifications')->warning('Slack send failed - webhook URL not configured');
+            Logger::channel('api')->warning('Slack send failed - webhook URL not configured');
             return ['success' => false, 'channel' => self::CHANNEL_SLACK, 'error' => 'Webhook URL not configured'];
         }
 
@@ -469,20 +469,20 @@ final class NotificationService
             $response = @file_get_contents($config['webhook_url'], false, $context);
 
             if ($response === 'ok') {
-                Logger::channel('notifications')->info('Slack message sent', [
+                Logger::channel('api')->info('Slack message sent', [
                     'title' => $title,
                 ]);
                 return ['success' => true, 'channel' => self::CHANNEL_SLACK, 'error' => null];
             }
 
             $error = $response ?: 'Unknown error';
-            Logger::channel('notifications')->error('Slack send failed', [
+            Logger::channel('api')->error('Slack send failed', [
                 'title' => $title,
                 'error' => $error,
             ]);
             return ['success' => false, 'channel' => self::CHANNEL_SLACK, 'error' => $error];
         } catch (\Throwable $e) {
-            Logger::channel('notifications')->error('Slack send exception', [
+            Logger::channel('api')->error('Slack send exception', [
                 'title' => $title,
                 'error' => $e->getMessage(),
             ]);

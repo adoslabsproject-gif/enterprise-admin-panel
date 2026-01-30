@@ -369,6 +369,21 @@ if (!function_exists('e')) {
     }
 }
 
+if (!function_exists('esc')) {
+    /**
+     * Escape HTML entities (alias of e())
+     *
+     * Used by enterprise-psr3-logger views for consistency.
+     *
+     * @param string|null $value
+     * @return string
+     */
+    function esc(?string $value): string
+    {
+        return htmlspecialchars($value ?? '', ENT_QUOTES, 'UTF-8', false);
+    }
+}
+
 if (!function_exists('generate_secure_password')) {
     /**
      * Generate a cryptographically secure random password

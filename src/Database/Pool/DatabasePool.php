@@ -450,7 +450,10 @@ final class DatabasePool
         try {
             $connection->release();
         } catch (PDOException $e) {
-            // Transaction rollback failed, remove connection
+            Logger::channel('database')->error('Connection release failed - transaction rollback error', [
+                'connection_id' => $connection->getIdentifier(),
+                'error' => $e->getMessage(),
+            ]);
             $this->transactionRollbacks++;
             $this->removeConnectionByIdentifier($connection->getIdentifier());
         }

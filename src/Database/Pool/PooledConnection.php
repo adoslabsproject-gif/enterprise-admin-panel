@@ -16,6 +16,7 @@ namespace AdosLabs\AdminPanel\Database\Pool;
 
 use PDO;
 use PDOException;
+use AdosLabs\EnterprisePSR3Logger\LoggerFacade as Logger;
 
 final class PooledConnection
 {
@@ -243,6 +244,10 @@ final class PooledConnection
             $this->markValidated();
             return true;
         } catch (PDOException $e) {
+            Logger::channel('database')->warning('Connection health check failed', [
+                'connection_id' => $this->identifier,
+                'error' => $e->getMessage(),
+            ]);
             $this->markUnhealthy($e->getMessage());
             return false;
         }

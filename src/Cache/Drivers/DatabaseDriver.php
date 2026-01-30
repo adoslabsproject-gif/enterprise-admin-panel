@@ -20,6 +20,7 @@ namespace AdosLabs\AdminPanel\Cache\Drivers;
 use PDO;
 use PDOException;
 use AdosLabs\AdminPanel\Core\Container;
+use AdosLabs\EnterprisePSR3Logger\LoggerFacade as Logger;
 
 final class DatabaseDriver implements CacheDriverInterface
 {
@@ -317,6 +318,9 @@ final class DatabaseDriver implements CacheDriverInterface
             return true;
         } catch (PDOException $e) {
             $pdo->rollBack();
+            Logger::channel('database')->error('Cache setMultiple transaction failed', [
+                'error' => $e->getMessage(),
+            ]);
             return false;
         }
     }

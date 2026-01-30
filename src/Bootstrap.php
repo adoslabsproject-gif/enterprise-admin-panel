@@ -170,21 +170,26 @@ final class Bootstrap
     /**
      * Configure PHP error logging
      *
+     * ENTERPRISE: Always enabled by default for enterprise apps.
+     * Set LOG_PHP_ERRORS=false to disable.
+     *
      * Reads LOG_PHP_ERRORS and PHP_ERROR_LOG from environment.
      * If PHP_ERROR_LOG is not absolute, it's relative to storage/logs.
      */
     private static function configurePhpErrorLog(): void
     {
-        $logPhpErrors = $_ENV['LOG_PHP_ERRORS'] ?? getenv('LOG_PHP_ERRORS') ?: null;
+        // Default to TRUE for enterprise apps - PHP errors should always be logged
+        $logPhpErrors = $_ENV['LOG_PHP_ERRORS'] ?? getenv('LOG_PHP_ERRORS');
 
-        if ($logPhpErrors === null || !filter_var($logPhpErrors, FILTER_VALIDATE_BOOLEAN)) {
+        // If explicitly set to false, skip
+        if ($logPhpErrors !== null && $logPhpErrors !== '' && !filter_var($logPhpErrors, FILTER_VALIDATE_BOOLEAN)) {
             return;
         }
 
         // Get error log path
         $errorLog = $_ENV['PHP_ERROR_LOG'] ?? getenv('PHP_ERROR_LOG') ?: null;
 
-        if ($errorLog === null) {
+        if ($errorLog === null || $errorLog === '') {
             // Default to storage/logs/php_errors.log
             $errorLog = self::$basePath . '/storage/logs/php_errors.log';
         } elseif (!str_starts_with($errorLog, '/')) {
@@ -201,6 +206,10 @@ final class Bootstrap
         // Configure PHP error logging
         ini_set('log_errors', '1');
         ini_set('error_log', $errorLog);
+        ini_set('display_errors', '0'); // Don't display, log instead
+
+        // Report all errors in error log (regardless of display_errors)
+        error_reporting(E_ALL);
     }
 
     /**
@@ -399,6 +408,10 @@ final class Bootstrap
 
     /**
      * Configure LoggerFacade to create loggers with file handlers
+     *
+     * Special handling for 'security' channel:
+     * - Writes to file (like all channels)
+     * - ALSO writes to database table 'security_log' for audit compliance
      */
     private static function registerLoggerFacade(): void
     {
@@ -410,7 +423,47 @@ final class Bootstrap
         }
 
         LoggerFacade::setLoggerFactory(function (string $channel) use ($logDir): \AdosLabs\EnterprisePSR3Logger\Logger {
-            return LoggerFactory::minimal($channel, "{$logDir}/{$channel}-" . date('Y-m-d') . '.log');
+            // File handler for all channels
+            $fileHandler = new \AdosLabs\EnterprisePSR3Logger\Handlers\StreamHandler(
+                "{$logDir}/{$channel}-" . date('Y-m-d') . '.log',
+                \Monolog\Level::Debug,
+                useLocking: true
+            );
+            $fileHandler->setFormatter(new \AdosLabs\EnterprisePSR3Logger\Formatters\DetailedLineFormatter(multiLine: false));
+
+            $handlers = [$fileHandler];
+
+            // Security channel: also write to database for audit trail
+            if ($channel === 'security') {
+                try {
+                    /** @var \AdosLabs\AdminPanel\Database\Pool\DatabasePool $pool */
+                    $pool = Container::get('db.pool');
+                    $connection = $pool->acquire();
+                    $pdo = $connection->getPdo();
+
+                    // SecurityDatabaseHandler writes to security_log table with
+                    // attacker identification columns (ip_address, user_id, user_email, etc.)
+                    $dbHandler = new \AdosLabs\EnterprisePSR3Logger\Handlers\SecurityDatabaseHandler(
+                        $pdo,
+                        \Monolog\Level::Debug,
+                        true // bubble
+                    );
+                    $handlers[] = $dbHandler;
+
+                    // Note: Connection is NOT released here - it stays in the handler
+                    // The pool will reclaim it when the request ends
+                } catch (\Throwable $e) {
+                    // Database not available - log to file only
+                    error_log("[Bootstrap] Security DB handler failed: " . $e->getMessage());
+                }
+            }
+
+            $logger = new \AdosLabs\EnterprisePSR3Logger\Logger($channel, $handlers);
+
+            // Add request processor for context
+            $logger->addProcessor(new \AdosLabs\EnterprisePSR3Logger\Processors\RequestProcessor());
+
+            return $logger;
         });
     }
 

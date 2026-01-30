@@ -22,6 +22,7 @@ namespace AdosLabs\AdminPanel\Database\Pool\Redis;
 
 use Redis;
 use RedisException;
+use AdosLabs\EnterprisePSR3Logger\LoggerFacade as Logger;
 
 final class RedisStateManager
 {
@@ -286,7 +287,11 @@ LUA;
             return true;
 
         } catch (RedisException $e) {
-            error_log("[RedisStateManager] Connection failed: " . $e->getMessage());
+            Logger::channel('database')->error('RedisStateManager connection failed', [
+                'host' => $this->host,
+                'port' => $this->port,
+                'error' => $e->getMessage(),
+            ]);
             $this->redis = null;
             $this->connected = false;
             return false;
@@ -306,6 +311,9 @@ LUA;
             $this->redis->ping();
             return true;
         } catch (RedisException $e) {
+            Logger::channel('database')->warning('Redis ping failed - marking disconnected', [
+                'error' => $e->getMessage(),
+            ]);
             $this->connected = false;
             return false;
         }
@@ -715,7 +723,9 @@ LUA;
      */
     private function handleError(RedisException $e): void
     {
-        error_log("[RedisStateManager] Error: " . $e->getMessage());
+        Logger::channel('database')->warning('RedisStateManager operation failed', [
+            'error' => $e->getMessage(),
+        ]);
         $this->connected = false;
     }
 

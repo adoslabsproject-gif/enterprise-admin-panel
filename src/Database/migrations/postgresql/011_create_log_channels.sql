@@ -28,7 +28,12 @@ CREATE TABLE IF NOT EXISTS log_channels (
     handlers JSONB NOT NULL DEFAULT '["file"]'::JSONB,
 
     -- Additional configuration (JSON)
-    -- e.g., {"telegram_level": "error", "file_rotation": "daily"}
+    -- Keys:
+    --   db_min_level: Minimum level for database logging (only for channels with "database" handler)
+    --                 Allows file=warning but db=error (separate thresholds)
+    --   telegram_level: Minimum level for Telegram notifications
+    --   file_rotation: Rotation strategy (daily, weekly, monthly)
+    -- Example: {"db_min_level": "error", "telegram_level": "critical"}
     config JSONB NOT NULL DEFAULT '{}'::JSONB,
 
     -- Auto-reset feature: automatically resets debug-level channels to WARNING
@@ -67,18 +72,102 @@ CREATE TRIGGER trg_log_channels_updated_at
     EXECUTE FUNCTION update_log_channels_updated_at();
 
 -- Insert default channels
--- IMPORTANT: Only 'security' and 'error' channels log to database for audit compliance
+-- IMPORTANT: Only 'security' channel logs to database for audit compliance
 -- All other channels log to file only to prevent database bloat
 -- DEFAULT LEVEL: warning (safe) for all channels
-INSERT INTO log_channels (channel, min_level, enabled, description, handlers) VALUES
-    ('default', 'warning', TRUE, 'Default application logs', '["file"]'),
-    ('security', 'warning', TRUE, 'Security events, authentication, authorization', '["file", "database"]'),
-    ('api', 'warning', TRUE, 'API requests and responses', '["file"]'),
-    ('database', 'warning', TRUE, 'Database queries, slow queries, errors', '["file"]'),
-    ('email', 'warning', TRUE, 'Email sending, SMTP errors', '["file"]'),
-    ('performance', 'warning', TRUE, 'Performance metrics, slow operations', '["file"]'),
-    ('error', 'error', TRUE, 'Application errors, exceptions, failures', '["file", "database"]')
-ON CONFLICT (channel) DO NOTHING;
+INSERT INTO log_channels (channel, min_level, enabled, description, handlers, config) VALUES
+    ('default', 'warning', TRUE, 'Default application logs', '["file"]', '{}'),
+    ('security', 'warning', TRUE, 'Security events, authentication, authorization', '["file", "database"]', '{"db_min_level": "warning"}'),
+    ('api', 'warning', TRUE, 'API requests and responses', '["file"]', '{}'),
+    ('database', 'warning', TRUE, 'Database queries, slow queries, errors', '["file"]', '{}'),
+    ('email', 'warning', TRUE, 'Email sending, SMTP errors', '["file"]', '{}'),
+    ('performance', 'warning', TRUE, 'Performance metrics, slow operations', '["file"]', '{}'),
+    ('error', 'error', TRUE, 'Application errors, exceptions, failures', '["file"]', '{}'),
+    ('js_errors', 'warning', TRUE, 'Client-side JavaScript errors and exceptions', '["file"]', '{}')
+ON CONFLICT (channel) DO UPDATE SET
+    handlers = EXCLUDED.handlers,
+    config = EXCLUDED.config
+WHERE log_channels.handlers = '["file"]' AND EXCLUDED.handlers != '["file"]';
+
+-- Create security_log table for DatabaseHandler (security channel audit trail)
+-- Extended schema with dedicated columns for attacker identification
+CREATE TABLE IF NOT EXISTS security_log (
+    id BIGSERIAL PRIMARY KEY,
+
+    -- Channel name (always 'security' for this table)
+    channel VARCHAR(255) NOT NULL DEFAULT 'security',
+
+    -- PSR-3 log level name (e.g., 'WARNING', 'ERROR')
+    level VARCHAR(20) NOT NULL,
+
+    -- Numeric level value for filtering (100=DEBUG, 200=INFO, 300=WARNING, 400=ERROR, etc.)
+    level_value SMALLINT NOT NULL,
+
+    -- Log message
+    message TEXT NOT NULL,
+
+    -- =====================================================================
+    -- ATTACKER IDENTIFICATION COLUMNS (dedicated for fast queries)
+    -- =====================================================================
+
+    -- IP address of the request (IPv4 or IPv6)
+    ip_address VARCHAR(45),
+
+    -- User ID if authenticated (NULL for anonymous)
+    user_id BIGINT,
+
+    -- User email if available
+    user_email VARCHAR(255),
+
+    -- User agent string
+    user_agent TEXT,
+
+    -- Session ID (truncated for security)
+    session_id VARCHAR(64),
+
+    -- =====================================================================
+    -- STRUCTURED DATA (JSON)
+    -- =====================================================================
+
+    -- Structured context data (JSON) - additional context
+    context JSONB,
+
+    -- Extra processor data (JSON) - contains request_id, memory, execution_time, etc.
+    extra JSONB,
+
+    -- Timestamp with microseconds for precise ordering
+    created_at TIMESTAMP(6) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    -- Request ID for correlating logs within the same request
+    request_id VARCHAR(36)
+);
+
+-- Indexes for security_log
+CREATE INDEX IF NOT EXISTS idx_security_log_channel ON security_log(channel);
+CREATE INDEX IF NOT EXISTS idx_security_log_level ON security_log(level_value);
+CREATE INDEX IF NOT EXISTS idx_security_log_created_at ON security_log(created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_security_log_request_id ON security_log(request_id);
+
+-- Attacker identification indexes
+CREATE INDEX IF NOT EXISTS idx_security_log_ip ON security_log(ip_address) WHERE ip_address IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_security_log_user_id ON security_log(user_id) WHERE user_id IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_security_log_user_email ON security_log(user_email) WHERE user_email IS NOT NULL;
+
+-- Partial index for errors only (most common query)
+CREATE INDEX IF NOT EXISTS idx_security_log_errors ON security_log(created_at DESC) WHERE level_value >= 400;
+
+-- Composite index for IP + time (attack pattern detection)
+CREATE INDEX IF NOT EXISTS idx_security_log_ip_time ON security_log(ip_address, created_at DESC) WHERE ip_address IS NOT NULL;
+
+-- Comment for documentation
+COMMENT ON TABLE security_log IS 'Security audit trail with attacker identification. Extended from DatabaseHandler schema.';
+COMMENT ON COLUMN security_log.ip_address IS 'Client IP address (IPv4/IPv6) for attacker identification';
+COMMENT ON COLUMN security_log.user_id IS 'Authenticated user ID (NULL for anonymous requests)';
+COMMENT ON COLUMN security_log.user_email IS 'User email for quick identification';
+COMMENT ON COLUMN security_log.user_agent IS 'Browser/client user agent string';
+COMMENT ON COLUMN security_log.session_id IS 'Session ID (truncated) for session tracking';
+COMMENT ON COLUMN security_log.context IS 'Additional JSON context data';
+COMMENT ON COLUMN security_log.extra IS 'Processor data - request_id, memory, execution_time, etc.';
 
 -- Create table for Telegram notification configuration
 CREATE TABLE IF NOT EXISTS log_telegram_config (

@@ -53,16 +53,85 @@ CREATE TABLE IF NOT EXISTS log_channels (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- Insert default channels
--- IMPORTANT: Only 'security' and 'error' channels log to database for audit compliance
+-- IMPORTANT: Only 'security' channel logs to database for audit compliance
 -- All other channels log to file only to prevent database bloat
-INSERT IGNORE INTO log_channels (channel, min_level, enabled, description, handlers) VALUES
-    ('default', 'warning', 1, 'Default application logs', '["file"]'),
-    ('security', 'warning', 1, 'Security events, authentication, authorization', '["file", "database"]'),
-    ('api', 'warning', 1, 'API requests and responses', '["file"]'),
-    ('database', 'warning', 1, 'Database queries, slow queries, errors', '["file"]'),
-    ('email', 'warning', 1, 'Email sending, SMTP errors', '["file"]'),
-    ('performance', 'warning', 1, 'Performance metrics, slow operations', '["file"]'),
-    ('error', 'error', 1, 'Application errors, exceptions, failures', '["file", "database"]');
+-- DEFAULT LEVEL: warning (safe) for all channels
+INSERT INTO log_channels (channel, min_level, enabled, description, handlers, config) VALUES
+    ('default', 'warning', 1, 'Default application logs', '["file"]', '{}'),
+    ('security', 'warning', 1, 'Security events, authentication, authorization', '["file", "database"]', '{"db_min_level": "warning"}'),
+    ('api', 'warning', 1, 'API requests and responses', '["file"]', '{}'),
+    ('database', 'warning', 1, 'Database queries, slow queries, errors', '["file"]', '{}'),
+    ('email', 'warning', 1, 'Email sending, SMTP errors', '["file"]', '{}'),
+    ('performance', 'warning', 1, 'Performance metrics, slow operations', '["file"]', '{}'),
+    ('error', 'error', 1, 'Application errors, exceptions, failures', '["file"]', '{}'),
+    ('js_errors', 'warning', 1, 'Client-side JavaScript errors and exceptions', '["file"]', '{}')
+ON DUPLICATE KEY UPDATE
+    handlers = IF(handlers = '["file"]' AND VALUES(handlers) != '["file"]', VALUES(handlers), handlers),
+    config = IF(config = '{}' AND VALUES(config) != '{}', VALUES(config), config);
+
+-- Create security_log table for DatabaseHandler (security channel audit trail)
+-- Extended schema with dedicated columns for attacker identification
+CREATE TABLE IF NOT EXISTS security_log (
+    id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+
+    -- Channel name (always 'security' for this table)
+    channel VARCHAR(255) NOT NULL DEFAULT 'security',
+
+    -- PSR-3 log level name (e.g., 'WARNING', 'ERROR')
+    level VARCHAR(20) NOT NULL,
+
+    -- Numeric level value for filtering (100=DEBUG, 200=INFO, 300=WARNING, 400=ERROR, etc.)
+    level_value SMALLINT NOT NULL,
+
+    -- Log message
+    message TEXT NOT NULL,
+
+    -- =====================================================================
+    -- ATTACKER IDENTIFICATION COLUMNS (dedicated for fast queries)
+    -- =====================================================================
+
+    -- IP address of the request (IPv4 or IPv6)
+    ip_address VARCHAR(45) NULL,
+
+    -- User ID if authenticated (NULL for anonymous)
+    user_id BIGINT UNSIGNED NULL,
+
+    -- User email if available
+    user_email VARCHAR(255) NULL,
+
+    -- User agent string
+    user_agent TEXT NULL,
+
+    -- Session ID (truncated for security)
+    session_id VARCHAR(64) NULL,
+
+    -- =====================================================================
+    -- STRUCTURED DATA (JSON)
+    -- =====================================================================
+
+    -- Structured context data (JSON) - additional context
+    context JSON,
+
+    -- Extra processor data (JSON) - contains request_id, memory, execution_time, etc.
+    extra JSON,
+
+    -- Timestamp with microseconds for precise ordering
+    created_at DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
+
+    -- Request ID for correlating logs within the same request
+    request_id VARCHAR(36),
+
+    -- Indexes for fast lookups
+    KEY idx_security_log_channel (channel),
+    KEY idx_security_log_level (level_value),
+    KEY idx_security_log_created_at (created_at),
+    KEY idx_security_log_request_id (request_id),
+    -- Attacker identification indexes
+    KEY idx_security_log_ip (ip_address),
+    KEY idx_security_log_user_id (user_id),
+    KEY idx_security_log_user_email (user_email),
+    KEY idx_security_log_ip_time (ip_address, created_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- Create table for Telegram notification configuration
 CREATE TABLE IF NOT EXISTS log_telegram_config (

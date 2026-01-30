@@ -451,6 +451,10 @@ final class TwoFactorService
         $user = $this->getUser($userId);
 
         if ($user === null) {
+            Logger::channel('security')->warning('2FA method check failed - user not found', [
+                'user_id' => $userId,
+                'method' => $method,
+            ]);
             return false;
         }
 

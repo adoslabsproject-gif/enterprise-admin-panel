@@ -7,6 +7,9 @@
  * Usage: php -S localhost:8080 router.php
  */
 
+// Ensure sufficient memory for database pool and OPcache
+ini_set('memory_limit', '256M');
+
 $uri = urldecode(parse_url($_SERVER['REQUEST_URI'], PHP_URL_PATH) ?? '/');
 $publicPath = __DIR__ . '/public' . $uri;
 

@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace AdosLabs\AdminPanel\Services;
 
 use AdosLabs\AdminPanel\Database\Pool\DatabasePool;
+use AdosLabs\EnterprisePSR3Logger\LoggerFacade as Logger;
 
 /**
  * Log Configuration Service
@@ -246,6 +247,10 @@ class LogConfigService
     ): bool {
         // Validate level
         if (!in_array($minLevel, self::getLevelNames(), true)) {
+            Logger::channel('error')->warning('Invalid log level provided for channel config', [
+                'channel' => $channel,
+                'level' => $minLevel,
+            ]);
             return false;
         }
 
@@ -290,6 +295,10 @@ class LogConfigService
     public function updateChannelLevel(string $channel, string $level): bool
     {
         if (!in_array($level, self::getLevelNames(), true)) {
+            Logger::channel('error')->warning('Invalid log level for channel update', [
+                'channel' => $channel,
+                'level' => $level,
+            ]);
             return false;
         }
 
@@ -502,6 +511,9 @@ class LogConfigService
 
         // Validate
         if (!in_array($minLevel, self::getLevelNames(), true)) {
+            Logger::channel('error')->warning('Invalid Telegram min_level', [
+                'level' => $minLevel,
+            ]);
             return false;
         }
 
@@ -577,6 +589,10 @@ class LogConfigService
 
         // Check rate limit
         if (!$this->checkTelegramRateLimit($config['rate_limit_per_minute'])) {
+            Logger::channel('api')->debug('Telegram rate limit exceeded', [
+                'channel' => $channel,
+                'level' => $level,
+            ]);
             return false;
         }
 

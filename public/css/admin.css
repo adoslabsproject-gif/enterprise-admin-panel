@@ -215,6 +215,9 @@ body {
 .eap-sidebar__link-icon {
     width: 18px;
     height: 18px;
+    min-width: 18px;
+    min-height: 18px;
+    flex-shrink: 0;
     opacity: 0.7;
 }
 
@@ -232,6 +235,57 @@ body {
     font-weight: 600;
     font-family: var(--eap-font-mono);
 }
+
+/* Sidebar group with submenu */
+.eap-sidebar__group {
+    margin-bottom: 0.25rem;
+}
+
+.eap-sidebar__submenu {
+    display: block;
+    padding-left: 1rem;
+    margin-top: 0.125rem;
+    border-left: 1px solid var(--eap-border);
+    margin-left: 1.5rem;
+}
+
+.eap-sidebar__sublink {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.5rem 0.75rem;
+    color: var(--eap-text-secondary);
+    text-decoration: none;
+    font-size: 0.75rem;
+    font-family: var(--eap-font-mono);
+    transition: color 0.15s, background 0.15s;
+    border-radius: 4px;
+    margin: 0.125rem 0;
+}
+
+.eap-sidebar__sublink:hover {
+    color: var(--eap-text-primary);
+    background: var(--eap-surface);
+}
+
+.eap-sidebar__sublink--active {
+    color: var(--eap-neon-cyan);
+    background: var(--eap-primary-bg);
+    position: relative;
+}
+
+.eap-sidebar__sublink--active::before {
+    content: '>';
+    position: absolute;
+    left: -0.5rem;
+    font-family: var(--eap-font-mono);
+    font-weight: bold;
+    font-size: 0.75rem;
+    color: var(--eap-neon-cyan);
+    animation: eap-blink 1s step-end infinite;
+}
+
+/* Sublink text-only style (no icons) */
 
 /* Terminal decoration at bottom */
 .eap-sidebar__footer {
@@ -558,6 +612,29 @@ body {
     font-size: 0.75rem;
 }
 
+.eap-btn--success {
+    background: var(--eap-neon-green);
+    color: var(--eap-void);
+    border-color: var(--eap-neon-green);
+}
+
+.eap-btn--success:hover {
+    background: transparent;
+    color: var(--eap-neon-green);
+    box-shadow: var(--eap-glow-green);
+}
+
+.eap-btn--warning {
+    background: var(--eap-neon-orange);
+    color: var(--eap-void);
+    border-color: var(--eap-neon-orange);
+}
+
+.eap-btn--warning:hover {
+    background: transparent;
+    color: var(--eap-neon-orange);
+}
+
 /* ============================================================
  * Forms - Input Terminal Style
  * ============================================================ */
@@ -649,6 +726,30 @@ body {
     font-family: var(--eap-font-mono);
 }
 
+.eap-table__cell--mono {
+    font-family: var(--eap-font-mono);
+    font-size: 0.8125rem;
+}
+
+.eap-table__cell--truncate {
+    max-width: 200px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.eap-table__cell--muted {
+    color: var(--eap-text-muted);
+}
+
+.eap-table__cell--center {
+    text-align: center;
+}
+
+.eap-table__cell--right {
+    text-align: right;
+}
+
 /* ============================================================
  * Badges - Status Tags
  * ============================================================ */
@@ -693,6 +794,37 @@ body {
     border: 1px solid var(--eap-border);
 }
 
+.eap-badge--secondary {
+    background: rgba(139, 148, 158, 0.1);
+    color: var(--eap-text-secondary);
+    border: 1px solid rgba(139, 148, 158, 0.3);
+}
+
+.eap-badge--purple {
+    background: rgba(189, 147, 249, 0.1);
+    color: var(--eap-neon-purple);
+    border: 1px solid rgba(189, 147, 249, 0.3);
+}
+
+.eap-badge--primary {
+    background: var(--eap-primary-bg);
+    color: var(--eap-neon-cyan);
+    border: 1px solid rgba(0, 212, 255, 0.3);
+}
+
+.eap-badge--sm {
+    padding: 0.125rem 0.375rem;
+    font-size: 0.625rem;
+}
+
+.eap-badge__dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: currentColor;
+    animation: eap-pulse 2s ease-in-out infinite;
+}
+
 /* ============================================================
  * Alerts - System Messages
  * ============================================================ */
@@ -735,6 +867,22 @@ body {
 /* ============================================================
  * Utility Classes
  * ============================================================ */
+/* Code styling */
+.eap-code {
+    font-family: var(--eap-font-mono);
+    font-size: 0.8125rem;
+    padding: 0.125rem 0.375rem;
+    background: var(--eap-surface);
+    border: 1px solid var(--eap-border);
+    border-radius: var(--eap-radius-sm);
+    color: var(--eap-neon-yellow);
+}
+
+.eap-code--sm {
+    font-size: 0.75rem;
+    padding: 0.0625rem 0.25rem;
+}
+
 .eap-text--muted { color: var(--eap-text-muted); }
 .eap-text--sm { font-size: 0.8125rem; }
 .eap-text--xs { font-size: 0.75rem; }
@@ -768,7 +916,8 @@ body {
     .eap-sidebar__link-text,
     .eap-sidebar__link-badge,
     .eap-sidebar__section,
-    .eap-sidebar__footer {
+    .eap-sidebar__footer,
+    .eap-sidebar__submenu {
         display: none;
     }
     .eap-sidebar__link {
@@ -776,7 +925,8 @@ body {
         padding: 0.75rem;
         margin: 0.125rem 0.375rem;
     }
-    .eap-sidebar__link--active::before {
+    .eap-sidebar__link--active::before,
+    .eap-sidebar__sublink--active::before {
         display: none;
     }
     .eap-main {
@@ -1116,6 +1266,210 @@ body {
     color: var(--eap-text-muted);
 }
 
+/* Additional stat card variants */
+.eap-stat-card--success {
+    border-color: rgba(0, 255, 136, 0.3);
+    background: rgba(0, 255, 136, 0.05);
+}
+.eap-stat-card--success .eap-stat-card__value { color: var(--eap-neon-green); }
+
+.eap-stat-card--purple {
+    border-color: rgba(189, 147, 249, 0.3);
+    background: rgba(189, 147, 249, 0.05);
+}
+.eap-stat-card--purple .eap-stat-card__value { color: var(--eap-neon-purple); }
+
+.eap-stat-card--secondary {
+    border-color: rgba(139, 148, 158, 0.3);
+    background: rgba(139, 148, 158, 0.05);
+}
+.eap-stat-card--secondary .eap-stat-card__value { color: var(--eap-text-secondary); }
+
+.eap-stat-card--cyan {
+    border-color: rgba(0, 212, 255, 0.3);
+    background: rgba(0, 212, 255, 0.05);
+}
+.eap-stat-card--cyan .eap-stat-card__value { color: var(--eap-neon-cyan); }
+
+/* Stat card with icon layout */
+.eap-stat-card__icon {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 48px;
+    height: 48px;
+    margin: 0 auto 0.75rem;
+    border-radius: var(--eap-radius);
+    background: var(--eap-abyss);
+}
+.eap-stat-card__icon svg {
+    width: 24px;
+    height: 24px;
+    stroke: currentColor;
+}
+.eap-stat-card--danger .eap-stat-card__icon { color: var(--eap-neon-red); }
+.eap-stat-card--warning .eap-stat-card__icon { color: var(--eap-neon-orange); }
+.eap-stat-card--info .eap-stat-card__icon { color: var(--eap-neon-cyan); }
+.eap-stat-card--success .eap-stat-card__icon { color: var(--eap-neon-green); }
+.eap-stat-card--purple .eap-stat-card__icon { color: var(--eap-neon-purple); }
+.eap-stat-card--secondary .eap-stat-card__icon { color: var(--eap-text-secondary); }
+
+.eap-stat-card__content {
+    text-align: center;
+}
+
+/* Stats grid variants */
+.eap-stats-grid {
+    display: grid;
+    gap: 1rem;
+    margin-bottom: 1.5rem;
+}
+.eap-stats-grid--4 { grid-template-columns: repeat(4, 1fr); }
+.eap-stats-grid--6 { grid-template-columns: repeat(6, 1fr); }
+@media (max-width: 1200px) {
+    .eap-stats-grid--6 { grid-template-columns: repeat(3, 1fr); }
+}
+@media (max-width: 768px) {
+    .eap-stats-grid--4, .eap-stats-grid--6 { grid-template-columns: repeat(2, 1fr); }
+}
+
+/* Key-value list */
+.eap-kv-list {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+}
+.eap-kv-list__item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding-bottom: 0.75rem;
+    border-bottom: 1px solid var(--eap-border);
+}
+.eap-kv-list__item:last-child {
+    border-bottom: none;
+    padding-bottom: 0;
+}
+.eap-kv-list__key {
+    color: var(--eap-text-muted);
+    font-size: 0.875rem;
+}
+.eap-kv-list__value {
+    color: var(--eap-text-primary);
+    font-weight: 500;
+}
+
+/* Category items */
+.eap-category-item {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    padding: 1rem;
+    background: var(--eap-abyss);
+    border-radius: var(--eap-radius);
+    border: 1px solid var(--eap-border);
+}
+.eap-category-item__desc {
+    font-size: 0.8125rem;
+    color: var(--eap-text-muted);
+}
+
+/* Algorithm list */
+.eap-algorithm-list {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+}
+.eap-algorithm-item {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.5rem;
+}
+.eap-algorithm-item__desc {
+    width: 100%;
+    font-size: 0.8125rem;
+    color: var(--eap-text-muted);
+    margin-top: 0.25rem;
+}
+
+/* Code block */
+.eap-code-block {
+    background: var(--eap-void);
+    border: 1px solid var(--eap-border);
+    border-radius: var(--eap-radius);
+    padding: 1rem;
+    overflow-x: auto;
+    font-family: var(--eap-font-mono);
+    font-size: 0.8125rem;
+    line-height: 1.6;
+    color: var(--eap-text-code);
+}
+.eap-code-comment {
+    color: var(--eap-text-muted);
+}
+
+/* Form elements */
+.eap-form-group {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+}
+.eap-form-label {
+    font-size: 0.875rem;
+    font-weight: 500;
+    color: var(--eap-text-secondary);
+}
+.eap-form-hint {
+    font-size: 0.75rem;
+    color: var(--eap-text-muted);
+}
+.eap-form-actions {
+    margin-top: 1.5rem;
+}
+.eap-input {
+    width: 100%;
+    padding: 0.625rem 0.875rem;
+    font-size: 0.875rem;
+    font-family: var(--eap-font-mono);
+    color: var(--eap-text-primary);
+    background: var(--eap-abyss);
+    border: 1px solid var(--eap-border);
+    border-radius: var(--eap-radius);
+    transition: border-color 0.15s, box-shadow 0.15s;
+}
+.eap-input:focus {
+    outline: none;
+    border-color: var(--eap-neon-cyan);
+    box-shadow: 0 0 0 3px rgba(0, 212, 255, 0.1);
+}
+.eap-inline-form {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+/* List styling */
+.eap-list {
+    list-style: none;
+    padding: 0;
+    margin: 0.75rem 0 0 0;
+}
+.eap-list li {
+    position: relative;
+    padding-left: 1.25rem;
+    margin-bottom: 0.5rem;
+    font-size: 0.875rem;
+    color: var(--eap-text-secondary);
+}
+.eap-list li::before {
+    content: '>';
+    position: absolute;
+    left: 0;
+    color: var(--eap-neon-cyan);
+    font-family: var(--eap-font-mono);
+}
+
 /* Error list */
 .eap-error-list {
     max-height: 600px;
@@ -1209,6 +1563,44 @@ body {
 
 .eap-empty-state p {
     margin-bottom: 0.5rem;
+}
+
+/* Status indicator */
+.eap-status {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.375rem;
+    font-family: var(--eap-font-mono);
+    font-size: 0.75rem;
+    font-weight: 500;
+}
+
+.eap-status::before {
+    content: '';
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: currentColor;
+}
+
+.eap-status--success {
+    color: var(--eap-neon-green);
+}
+
+.eap-status--danger {
+    color: var(--eap-neon-red);
+}
+
+.eap-status--warning {
+    color: var(--eap-neon-orange);
+}
+
+.eap-status--info {
+    color: var(--eap-neon-cyan);
+}
+
+.eap-status--muted {
+    color: var(--eap-text-muted);
 }
 
 /* Hidden utility */

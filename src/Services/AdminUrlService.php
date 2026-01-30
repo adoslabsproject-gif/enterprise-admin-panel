@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace AdosLabs\AdminPanel\Services;
 
 use AdosLabs\AdminPanel\Database\Pool\DatabasePool;
+use AdosLabs\EnterprisePSR3Logger\LoggerFacade as Logger;
 use Psr\Log\LoggerInterface;
 use Psr\Log\NullLogger;
 
@@ -235,6 +236,9 @@ final class AdminUrlService
     public function setCliCommandTemplate(string $template): bool
     {
         if (strpos($template, '{TOKEN}') === false) {
+            Logger::channel('error')->warning('CLI command template missing {TOKEN} placeholder', [
+                'template' => $template,
+            ]);
             return false;
         }
 

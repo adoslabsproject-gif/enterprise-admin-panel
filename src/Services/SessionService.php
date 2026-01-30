@@ -188,6 +188,9 @@ final class SessionService
                 );
 
                 if (empty($freshSessions)) {
+                    Logger::channel('security')->warning('Session disappeared after extension attempt', [
+                        'session_id' => substr($sessionId, 0, 16) . '...',
+                    ]);
                     return null;
                 }
 
@@ -233,6 +236,9 @@ final class SessionService
         }
 
         if ($session === null) {
+            Logger::channel('security')->debug('Session extension skipped - session not found', [
+                'session_id' => substr($sessionId, 0, 16) . '...',
+            ]);
             return false;
         }
 

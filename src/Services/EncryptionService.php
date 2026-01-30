@@ -182,6 +182,7 @@ final class EncryptionService
         $plaintext = $oldService->decrypt($encrypted);
 
         if ($plaintext === null) {
+            Logger::channel('security')->error('Re-encryption failed - decryption with old key failed');
             return null;
         }
 

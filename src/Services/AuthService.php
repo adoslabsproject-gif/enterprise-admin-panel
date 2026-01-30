@@ -508,6 +508,10 @@ final class AuthService
         $session = $this->sessionService->get($sessionId);
 
         if ($session === null) {
+            Logger::channel('security')->warning('Logout attempt with invalid/expired session', [
+                'session_id' => substr($sessionId, 0, 16) . '...',
+                'ip' => $ipAddress,
+            ]);
             return false;
         }
 
@@ -558,6 +562,10 @@ final class AuthService
         $user = $this->findUserById($userId);
 
         if ($user === null) {
+            Logger::channel('security')->error('Password change failed - user not found', [
+                'user_id' => $userId,
+                'ip' => $ipAddress,
+            ]);
             return false;
         }
 
@@ -995,6 +1003,9 @@ final class AuthService
         );
 
         if (empty($rows)) {
+            Logger::channel('security')->error('Recovery code verification failed - user not found', [
+                'user_id' => $userId,
+            ]);
             return false;
         }
 
@@ -1002,6 +1013,9 @@ final class AuthService
         $codesJson = $user['two_factor_recovery_codes'] ?? null;
 
         if (!$codesJson) {
+            Logger::channel('security')->warning('Recovery code verification failed - no codes configured', [
+                'user_id' => $userId,
+            ]);
             $this->recordRecoveryAttempt($userId, false);
             return false;
         }
@@ -1009,6 +1023,9 @@ final class AuthService
         $hashedCodes = json_decode($codesJson, true);
 
         if (!is_array($hashedCodes)) {
+            Logger::channel('security')->error('Recovery code verification failed - invalid codes format', [
+                'user_id' => $userId,
+            ]);
             $this->recordRecoveryAttempt($userId, false);
             return false;
         }
