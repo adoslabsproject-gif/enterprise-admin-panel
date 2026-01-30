@@ -230,7 +230,7 @@
             "dist": {
                 "type": "path",
                 "url": "../enterprise-psr3-logger",
-                "reference": "937e2386fab4089e99e4b51943b3931e5b80970c"
+                "reference": "32ebca4f88f58ed034fc7eb5753ccfddc194854b"
             },
             "require": {
                 "ext-json": "*",
@@ -325,7 +325,7 @@
             "dist": {
                 "type": "path",
                 "url": "../enterprise-security-shield",
-                "reference": "c8862a117864c96c7659d264d1ac5ee630f4e01b"
+                "reference": "038b9cdf46196472c2133150e97a1a95c5b1ed50"
             },
             "require": {
                 "ext-json": "*",

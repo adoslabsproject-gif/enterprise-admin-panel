@@ -827,19 +827,22 @@ if (!file_exists($gitignorePath)) {
 }
 
 // ============================================================================
-// Create public/index.php in project root
+// Create public/index.php in project root (ONLY for external projects)
 // ============================================================================
 
 $publicDir = $projectRoot . '/public';
 $indexFile = $publicDir . '/index.php';
 
-if (!is_dir($publicDir)) {
-    mkdir($publicDir, 0755, true);
-    echo "Creating public/ directory...\n";
-}
+// Only create wrapper index.php if projectRoot != packageRoot
+// (i.e., when installed as a dependency, not when running from package itself)
+if ($projectRoot !== $packageRoot) {
+    if (!is_dir($publicDir)) {
+        mkdir($publicDir, 0755, true);
+        echo "Creating public/ directory...\n";
+    }
 
-// Create index.php that bootstraps from vendor
-$indexContent = <<<'PHP'
+    // Create index.php that bootstraps from vendor
+    $indexContent = <<<'PHP'
 <?php
 /**
  * Enterprise Admin Panel - Entry Point
@@ -858,62 +861,70 @@ define('EAP_PROJECT_ROOT', dirname(__DIR__));
 require __DIR__ . '/../vendor/ados-labs/enterprise-admin-panel/public/index.php';
 PHP;
 
-file_put_contents($indexFile, $indexContent);
-echo "  [OK] Created public/index.php\n";
+    file_put_contents($indexFile, $indexContent);
+    echo "  [OK] Created public/index.php\n";
+} else {
+    echo "  [OK] Using existing public/index.php (package development mode)\n";
+}
 
-// Copy CSS and JS assets
-$packagePublic = $packageRoot . '/public';
-$assetDirs = ['css', 'js'];
+// Copy assets only for external projects (not when running from package itself)
+if ($projectRoot !== $packageRoot) {
+    // Copy CSS and JS assets
+    $packagePublic = $packageRoot . '/public';
+    $assetDirs = ['css', 'js'];
 
-foreach ($assetDirs as $assetDir) {
-    $sourceDir = $packagePublic . '/' . $assetDir;
-    $targetDir = $publicDir . '/' . $assetDir;
+    foreach ($assetDirs as $assetDir) {
+        $sourceDir = $packagePublic . '/' . $assetDir;
+        $targetDir = $publicDir . '/' . $assetDir;
 
-    if (is_dir($sourceDir)) {
-        if (!is_dir($targetDir)) {
-            mkdir($targetDir, 0755, true);
-        }
-
-        // Copy all files
-        $files = glob($sourceDir . '/*');
-        foreach ($files as $file) {
-            if (is_file($file)) {
-                copy($file, $targetDir . '/' . basename($file));
+        if (is_dir($sourceDir)) {
+            if (!is_dir($targetDir)) {
+                mkdir($targetDir, 0755, true);
             }
+
+            // Copy all files
+            $files = glob($sourceDir . '/*');
+            foreach ($files as $file) {
+                if (is_file($file)) {
+                    copy($file, $targetDir . '/' . basename($file));
+                }
+            }
+            echo "  [OK] Copied {$assetDir}/ assets\n";
         }
-        echo "  [OK] Copied {$assetDir}/ assets\n";
     }
-}
 
-// Copy favicon files
-$faviconFiles = [
-    'favicon.ico',
-    'favicon-16x16.png',
-    'favicon-32x32.png',
-    'apple-touch-icon.png',
-    'android-chrome-192x192.png',
-    'android-chrome-512x512.png',
-];
+    // Copy favicon files
+    $faviconFiles = [
+        'favicon.ico',
+        'favicon-16x16.png',
+        'favicon-32x32.png',
+        'apple-touch-icon.png',
+        'android-chrome-192x192.png',
+        'android-chrome-512x512.png',
+    ];
 
-$faviconsCopied = 0;
-foreach ($faviconFiles as $favicon) {
-    $source = $packagePublic . '/' . $favicon;
-    if (file_exists($source)) {
-        copy($source, $publicDir . '/' . $favicon);
-        $faviconsCopied++;
+    $faviconsCopied = 0;
+    foreach ($faviconFiles as $favicon) {
+        $source = $packagePublic . '/' . $favicon;
+        if (file_exists($source)) {
+            copy($source, $publicDir . '/' . $favicon);
+            $faviconsCopied++;
+        }
     }
-}
-if ($faviconsCopied > 0) {
-    echo "  [OK] Copied {$faviconsCopied} favicon files\n";
-}
+    if ($faviconsCopied > 0) {
+        echo "  [OK] Copied {$faviconsCopied} favicon files\n";
+    }
 
-// Copy router.php for PHP built-in server
-$routerSource = $packageRoot . '/router.php';
-$routerTarget = $projectRoot . '/router.php';
+    // Copy router.php for PHP built-in server
+    $routerSource = $packageRoot . '/router.php';
+    $routerTarget = $projectRoot . '/router.php';
 
-if (file_exists($routerSource) && !file_exists($routerTarget)) {
-    copy($routerSource, $routerTarget);
-    echo "  [OK] Copied router.php (for PHP built-in server)\n";
+    if (file_exists($routerSource) && !file_exists($routerTarget)) {
+        copy($routerSource, $routerTarget);
+        echo "  [OK] Copied router.php (for PHP built-in server)\n";
+    }
+} else {
+    echo "  [OK] Using existing assets (package development mode)\n";
 }
 
 echo "\n";
