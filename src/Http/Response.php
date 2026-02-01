@@ -266,7 +266,8 @@ final class Response implements ResponseInterface
             ->withHeader('Content-Security-Policy', implode('; ', [
                 "default-src 'self'",
                 "script-src 'self'",
-                "style-src 'self'",
+                // Allow browser-applied styles on native form elements (select/option)
+                "style-src 'self' 'unsafe-hashes' 'sha256-DL2IXj82ZaxyeudYyUlldcmA2Ado0C8vLkhPmTFfEd8=' 'sha256-NHarn8wEqJqUQoKwsaJttWeSqzOSSPTy65p3Z6aS0Qs=' 'sha256-rigSK8FmTI+849bntTmP9x+eiq4hDfGTZco5BLuH0sI=' 'sha256-r+kKTo91UeZ8VS1VQWyNsdB9Zi5TaQKG9Dg7TBeSY/w='",
                 "img-src 'self' data:",
                 "font-src 'self'",
                 "connect-src 'self'",
