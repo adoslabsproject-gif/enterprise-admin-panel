@@ -1443,6 +1443,86 @@ body {
     border-color: var(--eap-neon-cyan);
     box-shadow: 0 0 0 3px rgba(0, 212, 255, 0.1);
 }
+
+/* Select/Dropdown Matrix Theme */
+select.eap-input {
+    appearance: none;
+    -webkit-appearance: none;
+    -moz-appearance: none;
+    padding-right: 2.5rem;
+    cursor: pointer;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%2300d4ff' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 0.875rem center;
+    background-size: 12px;
+}
+select.eap-input:hover {
+    border-color: var(--eap-border-light);
+    background-color: var(--eap-surface);
+}
+select.eap-input:focus {
+    border-color: var(--eap-neon-cyan);
+    box-shadow: 0 0 0 3px rgba(0, 212, 255, 0.1), var(--eap-glow-cyan);
+}
+select.eap-input option {
+    background: var(--eap-abyss);
+    color: var(--eap-text-primary);
+    padding: 0.5rem;
+}
+select.eap-input option:hover,
+select.eap-input option:checked {
+    background: var(--eap-surface);
+    color: var(--eap-neon-cyan);
+}
+
+/* Native select styling for better cross-browser support */
+.eap-select {
+    position: relative;
+    display: inline-block;
+    width: 100%;
+}
+.eap-select select {
+    width: 100%;
+    padding: 0.625rem 2.5rem 0.625rem 0.875rem;
+    font-size: 0.875rem;
+    font-family: var(--eap-font-mono);
+    color: var(--eap-text-primary);
+    background: var(--eap-abyss);
+    border: 1px solid var(--eap-border);
+    border-radius: var(--eap-radius);
+    appearance: none;
+    -webkit-appearance: none;
+    -moz-appearance: none;
+    cursor: pointer;
+    transition: all 0.15s ease;
+}
+.eap-select::after {
+    content: '';
+    position: absolute;
+    right: 0.875rem;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 0;
+    height: 0;
+    border-left: 5px solid transparent;
+    border-right: 5px solid transparent;
+    border-top: 6px solid var(--eap-neon-cyan);
+    pointer-events: none;
+}
+.eap-select select:hover {
+    border-color: var(--eap-border-light);
+    background: var(--eap-surface);
+}
+.eap-select select:focus {
+    outline: none;
+    border-color: var(--eap-neon-cyan);
+    box-shadow: 0 0 0 3px rgba(0, 212, 255, 0.1);
+}
+.eap-select select option {
+    background: var(--eap-abyss);
+    color: var(--eap-text-primary);
+    padding: 0.5rem;
+}
 .eap-inline-form {
     display: inline-flex;
     align-items: center;
