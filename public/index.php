@@ -115,12 +115,31 @@ if (!$autoloaded) {
 })();
 
 // ============================================================================
-// MODULE ASSETS - Serve CSS/JS directly from vendor packages (BEFORE bootstrap)
-// This avoids initializing DB/cache just to serve static files
-// Path: /module-assets/{package}/{file} -> vendor/ados-labs/{package}/public/{file}
+// STATIC FILE ROUTING - When using PHP built-in server with router script
+// Serve static files (css, js, images) directly from public/
 // ============================================================================
 
 $requestPath = parse_url($_SERVER['REQUEST_URI'] ?? '/', PHP_URL_PATH);
+
+// Serve static files from public/ if they exist
+if (php_sapi_name() === 'cli-server') {
+    $staticExtensions = ['css', 'js', 'png', 'jpg', 'jpeg', 'gif', 'svg', 'ico', 'woff', 'woff2', 'ttf', 'eot', 'map'];
+    $ext = strtolower(pathinfo($requestPath, PATHINFO_EXTENSION));
+
+    if (in_array($ext, $staticExtensions, true)) {
+        $staticFile = __DIR__ . $requestPath;
+        if (file_exists($staticFile) && is_file($staticFile)) {
+            // Let PHP built-in server handle it
+            return false;
+        }
+    }
+}
+
+// ============================================================================
+// MODULE ASSETS - Serve CSS/JS directly from vendor packages (BEFORE bootstrap)
+// This avoids initializing DB/cache just to serve static files
+// Path: /module-assets/{package}/{file} -> vendor/ados-labs/{package}/assets/{file}
+// ============================================================================
 
 if (preg_match('#^/module-assets/([a-z0-9-]+)/(.+)$#', $requestPath, $matches)) {
     $package = $matches[1];
@@ -141,8 +160,14 @@ if (preg_match('#^/module-assets/([a-z0-9-]+)/(.+)$#', $requestPath, $matches)) 
         exit('Forbidden');
     }
 
-    // Build path to vendor package
-    $assetPath = $projectRoot . '/vendor/ados-labs/' . $package . '/public/' . $file;
+    // Calculate project root for assets (before autoload runs)
+    $assetProjectRoot = dirname(__DIR__);
+
+    // Build path to vendor package (try assets/ first, then public/)
+    $assetPath = $assetProjectRoot . '/vendor/ados-labs/' . $package . '/assets/' . $file;
+    if (!file_exists($assetPath)) {
+        $assetPath = $assetProjectRoot . '/vendor/ados-labs/' . $package . '/public/' . $file;
+    }
 
     if (!file_exists($assetPath) || !is_file($assetPath)) {
         http_response_code(404);
