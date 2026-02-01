@@ -57,6 +57,7 @@
 
     /**
      * Flash message auto-dismiss
+     * Uses CSS classes instead of inline styles for CSP compliance
      */
     function initFlashMessages() {
         var alerts = document.querySelectorAll('.eap-alert[data-auto-dismiss]');
@@ -65,8 +66,7 @@
             var delay = parseInt(alert.dataset.autoDismiss, 10) || 5000;
 
             setTimeout(function() {
-                alert.style.transition = 'opacity 0.3s ease';
-                alert.style.opacity = '0';
+                alert.classList.add('eap-alert--dismissing');
 
                 setTimeout(function() {
                     alert.remove();

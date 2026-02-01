@@ -864,6 +864,11 @@ body {
     color: var(--eap-neon-cyan);
 }
 
+.eap-alert--dismissing {
+    opacity: 0;
+    transition: opacity 0.3s ease;
+}
+
 /* ============================================================
  * Utility Classes
  * ============================================================ */
