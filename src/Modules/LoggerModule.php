@@ -59,16 +59,11 @@ class LoggerModule extends BaseModule
     {
         return [
             [
-                'label' => 'Logger',
+                'label' => 'Logs',
                 'url' => '/logger',
                 'icon' => 'file-text',
                 'priority' => 30,
                 'children' => [
-                    [
-                        'label' => 'Dashboard',
-                        'url' => '/logger',
-                        'icon' => 'layout-dashboard',
-                    ],
                     [
                         'label' => 'Channels',
                         'url' => '/logger/channels',

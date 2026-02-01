@@ -325,7 +325,7 @@
             "dist": {
                 "type": "path",
                 "url": "../enterprise-security-shield",
-                "reference": "038b9cdf46196472c2133150e97a1a95c5b1ed50"
+                "reference": "24f0687dfcefb39d3cd4731821ea7e390c81b7fa"
             },
             "require": {
                 "ext-json": "*",
